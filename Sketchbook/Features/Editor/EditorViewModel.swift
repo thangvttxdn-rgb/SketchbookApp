@@ -2,7 +2,7 @@ import SwiftUI
 import PencilKit
 
 enum ToolMode: String, CaseIterable, Identifiable {
-    case draw, erase, fill, lasso
+    case draw, erase, fill, lasso, shape
     var id: String { rawValue }
     var title: String { rawValue.capitalized }
     var systemImage: String {
@@ -11,6 +11,7 @@ enum ToolMode: String, CaseIterable, Identifiable {
         case .erase: return "eraser"
         case .fill: return "drop.fill"
         case .lasso: return "lasso"
+        case .shape: return "square.on.circle"
         }
     }
 }
@@ -26,6 +27,12 @@ final class EditorViewModel: ObservableObject {
     @Published var width: CGFloat = EditorViewModel.defaultBrushSize
     @Published var eraseWidth: CGFloat = 24
     @Published var toolMode: ToolMode = .draw
+    // MARK: Vector shapes
+    @Published var shapeKind: ShapeKind = .rectangle
+    @Published var shapeFillEnabled: Bool = false
+    @Published var shapeFillColor: Color = Color(hex: "#4C6EF5")
+    /// A shape being dragged out / adjusted via handles before it is baked in.
+    @Published var pendingShape: PendingShape?
     @Published var isRulerActive = false
     @Published var symmetry: SymmetryMode = .off
     @Published var perspective: PerspectiveGuide = .off
@@ -160,10 +167,76 @@ final class EditorViewModel: ObservableObject {
             // PencilKit's lasso selects strokes and shows its own edit menu
             // (cut / copy / duplicate / move).
             return PKLassoTool()
-        case .fill:
-            // Fill uses a tap gesture, not a PencilKit tool; keep a no-op pen.
+        case .fill, .shape:
+            // Fill and shape use overlay gestures, not a PencilKit tool; the
+            // canvas is locked in these modes, so keep a harmless pen.
             return brush.tool(color: UIColor(color), width: width)
         }
+    }
+
+    // MARK: - Vector shapes
+
+    /// Style captured from the current stroke colour / width + shape fill choice.
+    var currentShapeStyle: ShapeStyle {
+        ShapeStyle(strokeColor: color, strokeWidth: width,
+                   fillColor: (shapeFillEnabled && shapeKind.canFill) ? shapeFillColor : nil)
+    }
+
+    func selectShape(_ kind: ShapeKind) {
+        shapeKind = kind
+        toolMode = .shape
+        pendingShape = nil
+        Haptics.select()
+    }
+
+    /// Begin adjusting a shape dragged out to `rect` (canvas coordinates).
+    func beginShape(rect: CGRect) {
+        guard !activeLayerLocked else { return }
+        pendingShape = PendingShape(kind: shapeKind, rect: rect, style: currentShapeStyle)
+    }
+
+    func cancelPendingShape() { pendingShape = nil }
+
+    /// Bake the pending shape into the active layer as PKStrokes (fill + outline),
+    /// going through `activeDrawing` so it is one undo step and behaves like ink.
+    func commitPendingShape() {
+        guard let shape = pendingShape else { return }
+        pendingShape = nil
+        guard !activeLayerLocked else { return }
+        let strokes = ShapeFactory.strokes(for: shape)
+        guard !strokes.isEmpty else { return }
+        var drawing = activeDrawing
+        drawing.strokes.append(contentsOf: strokes)
+        activeDrawing = drawing   // snapshots + commits
+        Haptics.select()
+    }
+
+    // MARK: - Flip (active layer)
+
+    func flipHorizontal() { flip(horizontal: true) }
+    func flipVertical() { flip(horizontal: false) }
+
+    private func flip(horizontal: Bool) {
+        guard document.layers.indices.contains(activeIndex), !activeLayerLocked else { return }
+        snapshot()
+        let size = document.canvasSize
+        let t = horizontal
+            ? CGAffineTransform(translationX: size.width, y: 0).scaledBy(x: -1, y: 1)
+            : CGAffineTransform(translationX: 0, y: size.height).scaledBy(x: 1, y: -1)
+
+        var drawing = document.layers[activeIndex].drawing
+        drawing.transform(using: t)
+        document.layers[activeIndex].drawing = drawing
+
+        if let img = document.layers[activeIndex].image {
+            let flipped = UIGraphicsImageRenderer(size: size).image { ctx in
+                ctx.cgContext.concatenate(t)
+                img.draw(in: CGRect(origin: .zero, size: size))
+            }
+            document.layers[activeIndex].imageData = flipped.pngData()
+        }
+        invalidateLayerImage(document.layers[activeIndex].id)
+        Haptics.select()
     }
 
     /// Currently selected graphite grade (when the pencil brush is in use).

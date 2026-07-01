@@ -9,7 +9,10 @@ struct EditorView: View {
 
     @State private var showLayers = false
     @State private var showBrushes = false
+    @State private var showShapes = false
     @State private var showWidth = false
+    /// In-progress shape drag (canvas coords) before handles appear.
+    @State private var draftRect: CGRect?
     @State private var showPhotoPicker = false
     @State private var photoItem: PhotosPickerItem?
     @State private var arImage: UIImage?
@@ -61,6 +64,14 @@ struct EditorView: View {
         }
         .sheet(isPresented: $showBrushes) {
             BrushPanel(vm: vm).presentationDetents([.medium, .large])
+        }
+        .sheet(isPresented: $showShapes) {
+            ShapesPanel(vm: vm).presentationDetents([.medium, .large])
+        }
+        .onChange(of: vm.toolMode) { _, mode in
+            // Shape placement maps taps at the fit scale; snap zoom so the overlay
+            // registers with the canvas content.
+            if mode == .shape { canvasHandle.resetZoom() }
         }
         .photosPicker(isPresented: $showPhotoPicker, selection: $photoItem, matching: .images)
         .onChange(of: photoItem) { _, item in
@@ -201,6 +212,7 @@ struct EditorView: View {
                     iconButton("lineweight", label: "Brush size") { showWidth.toggle() }
                         .popover(isPresented: $showWidth) { widthPopover }
 
+                    shapesButton
                     toolButton(.fill)
                     toolButton(.lasso)
                 }
@@ -274,6 +286,25 @@ struct EditorView: View {
         .accessibilityLabel("Eraser")
     }
 
+    // Shapes — selects shape mode and opens the shape picker.
+    private var shapesButton: some View {
+        Button {
+            vm.toolMode = .shape
+            openPicker(.shapes) { showShapes = true }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: vm.shapeKind.systemImage)
+                Image(systemName: "chevron.down").font(.caption2)
+            }
+            .foregroundStyle(vm.toolMode == .shape ? .white : Theme.ink)
+            .padding(.horizontal, 10).frame(minWidth: 44, minHeight: 44)
+            .background(vm.toolMode == .shape ? Theme.primary : .clear,
+                        in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+        }
+        .help("Shapes")
+        .accessibilityLabel("Shapes")
+    }
+
     private func toolButton(_ mode: ToolMode) -> some View {
         Button { vm.toolMode = mode } label: {
             Image(systemName: mode.systemImage)
@@ -289,15 +320,13 @@ struct EditorView: View {
     private var overflowMenu: some View {
         Menu {
             guidesMenuContent
+            transformMenuContent
             Divider()
             Button { vm.setFingerDrawing(!vm.fingerDrawingEnabled) } label: {
                 Label(vm.fingerDrawingEnabled ? "Finger Drawing: On" : "Finger Drawing: Off",
                       systemImage: vm.fingerDrawingEnabled ? "hand.draw.fill" : "hand.draw")
             }
-            Button { orientation.toggle() } label: {
-                Label(orientation.isLocked ? "Unlock Orientation" : "Lock Orientation",
-                      systemImage: orientation.isLocked ? "lock.rotation.open" : "lock.rotation")
-            }
+            orientationMenuContent
             Button { showPhotoPicker = true } label: {
                 Label("Import Reference Photo", systemImage: "photo.on.rectangle.angled")
             }
@@ -375,6 +404,44 @@ struct EditorView: View {
                     Button { vm.applyFilter(f) } label: { Text(f.title) }
                 }
             }
+
+            Menu("Distort & Blur") {
+                ForEach(SketchFilter.distort) { f in
+                    Button { vm.applyFilter(f) } label: { Text(f.title) }
+                }
+            }
+        }
+    }
+
+    /// Flip the active layer and fit the canvas back to the screen.
+    @ViewBuilder
+    private var transformMenuContent: some View {
+        Menu("Transform") {
+            Button { vm.flipHorizontal() } label: {
+                Label("Flip Horizontal", systemImage: "arrow.left.and.right.righttriangle.left.righttriangle.right")
+            }
+            Button { vm.flipVertical() } label: {
+                Label("Flip Vertical", systemImage: "arrow.up.and.down.righttriangle.up.righttriangle.down")
+            }
+            Button { canvasHandle.resetZoom() } label: {
+                Label("Fit to Canvas", systemImage: "arrow.up.left.and.down.right.magnifyingglass")
+            }
+        }
+    }
+
+    /// Auto / Portrait / Landscape orientation lock.
+    @ViewBuilder
+    private var orientationMenuContent: some View {
+        Menu("Orientation") {
+            Button { orientation.unlock() } label: {
+                Label("Auto", systemImage: !orientation.isLocked ? "checkmark" : "rotate.right")
+            }
+            Button { orientation.lock(to: .portrait) } label: {
+                Label("Portrait", systemImage: orientation.isPortraitLocked ? "checkmark" : "rectangle.portrait")
+            }
+            Button { orientation.lock(to: .landscape) } label: {
+                Label("Landscape", systemImage: orientation.isLandscapeLocked ? "checkmark" : "rectangle")
+            }
         }
     }
 
@@ -415,6 +482,16 @@ struct EditorView: View {
                             vm.performFill(at: p)
                         })
                 }
+
+                // Shape mode: drag out a bounding rect, then adjust with handles.
+                if vm.toolMode == .shape {
+                    if vm.pendingShape == nil {
+                        shapeDraftCatcher(disp: disp, scale: scale)
+                    } else {
+                        ShapeEditingOverlay(vm: vm, scale: scale, displaySize: disp)
+                            .frame(width: disp.width, height: disp.height)
+                    }
+                }
             }
             .frame(width: disp.width, height: disp.height)
             .clipped()
@@ -425,6 +502,39 @@ struct EditorView: View {
             .onTapGesture(count: 2) { canvasHandle.resetZoom() }
         }
         .padding(16)
+    }
+
+    /// Catches the initial drag that lays out a new shape, drawing a live outline
+    /// preview until the drag ends (at which point the handle overlay takes over).
+    @ViewBuilder
+    private func shapeDraftCatcher(disp: CGSize, scale: CGFloat) -> some View {
+        ZStack {
+            Color.clear.contentShape(Rectangle())
+                .frame(width: disp.width, height: disp.height)
+                .gesture(DragGesture(minimumDistance: 4)
+                    .onChanged { value in
+                        draftRect = canvasRect(value.startLocation, value.location, scale: scale)
+                    }
+                    .onEnded { value in
+                        let rect = canvasRect(value.startLocation, value.location, scale: scale)
+                        draftRect = nil
+                        if rect.width > 4 || rect.height > 4 { vm.beginShape(rect: rect) }
+                    })
+            if let dr = draftRect {
+                ShapeOutline(kind: vm.shapeKind)
+                    .stroke(vm.color, style: StrokeStyle(lineWidth: max(1, vm.width * scale),
+                                                         lineCap: .round, lineJoin: .round))
+                    .frame(width: dr.width * scale, height: dr.height * scale)
+                    .position(x: dr.midX * scale, y: dr.midY * scale)
+                    .allowsHitTesting(false)
+            }
+        }
+    }
+
+    private func canvasRect(_ a: CGPoint, _ b: CGPoint, scale: CGFloat) -> CGRect {
+        let s = max(scale, 0.0001)
+        return CGRect(x: min(a.x, b.x) / s, y: min(a.y, b.y) / s,
+                      width: abs(a.x - b.x) / s, height: abs(a.y - b.y) / s)
     }
 
     @ViewBuilder
@@ -445,7 +555,7 @@ struct EditorView: View {
                            pencilOnly: vm.pencilOnly && vm.toolMode != .lasso,
                            symmetry: vm.symmetry,
                            canvasSize: canvasSize,
-                           isLocked: layer.isLocked || vm.toolMode == .fill,
+                           isLocked: layer.isLocked || vm.toolMode == .fill || vm.toolMode == .shape,
                            handle: canvasHandle,
                            onSwipeUp: { vm.nextPage() },
                            onSwipeDown: { vm.previousPage() })

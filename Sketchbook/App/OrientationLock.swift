@@ -31,6 +31,19 @@ final class OrientationManager: ObservableObject {
 
     func toggle() { isLocked ? unlock() : lockToCurrent() }
 
+    /// Explicitly pin the app to portrait or landscape (either side), and rotate
+    /// the device to match.
+    func lock(to mask: UIInterfaceOrientationMask) {
+        self.mask = mask
+        isLocked = true
+        apply()
+    }
+
+    /// Currently pinned to portrait only.
+    var isPortraitLocked: Bool { isLocked && mask == .portrait }
+    /// Currently pinned to landscape (either side).
+    var isLandscapeLocked: Bool { isLocked && mask == .landscape }
+
     private func apply() {
         guard let scene = UIApplication.shared.activeWindowScene else { return }
         scene.requestGeometryUpdate(.iOS(interfaceOrientations: mask))

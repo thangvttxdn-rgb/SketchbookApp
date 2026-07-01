@@ -15,6 +15,9 @@ enum SketchFilter: String, CaseIterable, Identifiable {
     case watercolor
     case pointillism
     case mosaic
+    // Distort & blur
+    case motionBlur
+    case liquify
 
     var id: String { rawValue }
     var title: String {
@@ -30,6 +33,8 @@ enum SketchFilter: String, CaseIterable, Identifiable {
         case .watercolor: return "Watercolor"
         case .pointillism: return "Pointillism"
         case .mosaic: return "Mosaic"
+        case .motionBlur: return "Motion Blur"
+        case .liquify: return "Liquify"
         }
     }
 
@@ -37,6 +42,8 @@ enum SketchFilter: String, CaseIterable, Identifiable {
     static var photo: [SketchFilter] { [.none, .mono, .sepia, .vibrant, .invert, .comic, .blur] }
     /// Painterly styles.
     static var painting: [SketchFilter] { [.oil, .watercolor, .pointillism, .mosaic] }
+    /// Distortion / blur effects.
+    static var distort: [SketchFilter] { [.motionBlur, .liquify] }
 }
 
 /// Applies Core Image effects to a composited sketch image.
@@ -102,6 +109,22 @@ enum FilterEngine {
             f.inputImage = input
             f.scale = 16
             f.center = CGPoint(x: input.extent.midX, y: input.extent.midY)
+            output = f.outputImage?.cropped(to: input.extent)
+        case .motionBlur:
+            let f = CIFilter.motionBlur()
+            f.inputImage = input
+            f.radius = 20
+            f.angle = 0
+            // Motion blur bleeds past the edges; clamp then crop back.
+            output = f.outputImage?.cropped(to: input.extent)
+        case .liquify:
+            // No Core Image "liquify"; a centred twirl warp reads as a liquified
+            // smear and is fully undoable like the other one-shot effects.
+            let f = CIFilter.twirlDistortion()
+            f.inputImage = input
+            f.center = CGPoint(x: input.extent.midX, y: input.extent.midY)
+            f.radius = Float(min(input.extent.width, input.extent.height) / 2)
+            f.angle = .pi
             output = f.outputImage?.cropped(to: input.extent)
         }
 
