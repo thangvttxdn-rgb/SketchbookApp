@@ -8,6 +8,13 @@ metadata:
 
 # iOS auto-release CI/CD (GitHub Actions)
 
+> **Org-standard signing credentials** live in `org-credentials.env` next to this file
+> (`~/.claude/skills/ios-auto-release/org-credentials.env`): `ASC_KEY_ID`, `ASC_ISSUER_ID`,
+> `ASC_PRIVATE_KEY_PATH`, `TEAM_ID=GU9WTSTX9M`. `install_on_device.sh` sources it as a fallback,
+> so no need to hunt sibling `.env` files or ask the user. The `.p8` secret itself stays only at
+> `~/.appstoreconnect/private_keys/`. A project's own `.env` overrides these (set `ASC_BUNDLE_ID`).
+> To install a dev build on a connected device: `bash ~/.claude/skills/ios-auto-release/scripts/install_on_device.sh`.
+
 Make every push to `main` build, sign, upload, and **submit for review** automatically.
 The runner is **macOS** (Xcode is required to archive iOS apps). Auth for upload + submit is
 the existing **App Store Connect API key** — no new token is needed (though a dedicated CI key
@@ -15,6 +22,28 @@ is good hygiene: *Users and Access → Integrations → App Store Connect API �
 
 > The app record must already exist on App Store Connect (the API cannot create apps). Use the
 > `app-store-submission` skill for the first manual submission; this skill automates the rest.
+
+## Fast path: upload a binary now via the ASC API (no CI round-trip)
+
+To get a build into App Store Connect **immediately from your Mac** — instead of waiting on a
+GitHub Actions run — use `upload_binary.sh`. It archives → exports an `app-store-connect` IPA →
+**uploads via `xcrun altool --apiKey`**, reusing the org ASC API key as the upload token (no
+Transporter/notarytool password). The build lands under the app's **TestFlight / Builds** tab a
+few minutes later; attach it to a version and submit (UI, or `ci_submit.py submit`).
+
+```bash
+# app record + App ID + "Apple Distribution" cert + "<Scheme> App Store" profile must already exist
+ASC_BUNDLE_ID=com.tertiaryinfotech.<app> \
+  bash ~/.claude/skills/ios-auto-release/scripts/upload_binary.sh
+# Optional overrides: SCHEME, PROFILE, SIGN_IDENTITY, ENTITLEMENTS (e.g. a no-iCloud
+# Local.entitlements), BUILD_NUMBER, SKIP_ARCHIVE=1 (re-export+upload an existing archive).
+```
+
+It auto-sources `org-credentials.env` + a project `.env`, signs **manually** with your
+distribution cert + App Store profile, stamps a unique UTC build number, and warns about the
+two most common `altool` rejections (missing **AppIcon** → 90022/90713) before the slow upload.
+Use this for first releases and one-off pushes; use the GitHub Actions workflow below to make it
+automatic on every push to `main`.
 
 ## What it does each push
 
@@ -65,6 +94,16 @@ Then `gh secret list --repo $REPO` should show all six. Trigger with a push or
 - **iOS 26 SDK required.** App Store Connect rejects uploads built with an older SDK
   (409 "must be built with the iOS 26 SDK or later"). The workflow runs `maxim-lobanov/setup-xcode`
   with `latest-stable`; ensure the runner image actually has Xcode 26 (`macos-15`/`macos-26`).
+- **Export compliance must be answered or `submit` 409s.** A build uploaded *without*
+  `ITSAppUsesNonExemptEncryption` in `Info.plist` lands with `usesNonExemptEncryption = null`
+  (the encryption question is unanswered). Submitting that version fails with
+  `409 STATE_ERROR.ENTITY_STATE_INVALID` — *"appStoreVersions … is not in valid state … This
+  resource cannot be reviewed"* — with the real cause buried in `associatedErrors` pointing at
+  `/v1/builds`. **Fix permanently:** add `ITSAppUsesNonExemptEncryption=false` to `Info.plist`
+  (XcodeGen: under the target's `info.properties`) so every future build auto-answers. **Fix a
+  build already uploaded:** `PATCH /v1/builds/{id}` `{"attributes":{"usesNonExemptEncryption":false}}`.
+  `ci_submit.py` now does this automatically in `attach_build` (sets `false` when `null`); use `true`
+  only if the app genuinely uses non-exempt encryption (then file the annual self-classification).
 - **Externally-managed Python on macOS runners.** `pip3 install` fails with PEP 668; use
   `actions/setup-python` (the template does) and `pip install`.
 - **Release archive defaults to automatic signing** and fails for iCloud/other entitlements with the
@@ -83,6 +122,16 @@ Then `gh secret list --repo $REPO` should show all six. Trigger with a push or
   no-op on a first release (App Store allows "What's New" only on updates of an already-released app).
 - **App Privacy + age rating** are app-level and carry across versions — set once in the UI
   (see the `app-store-submission` skill); CI does not touch them.
+- **China mainland needs a publishing permit for any book/text content (Guideline 2.1).** Apps
+  that contain or display book, magazine, or scripture content — sutras, classics (道德经/金刚经),
+  Tang poems, song lyrics, religious texts — are rejected in China mainland without a China NPPA
+  **Internet Publishing License (网络出版服务许可证)**. A Singapore/foreign entity (Tertiary Infotech)
+  cannot obtain one, so **deselect China mainland up front**: *Pricing and Availability → App
+  Availability → Manage Availability → uncheck "China mainland" → Next → Confirm*. The app then
+  ships to every other territory and passes review; the choice is reversible if a permit is ever
+  obtained. Make this the **default for all Chinese-text / book-content apps** to avoid a rejection
+  round-trip. (This is an app-level availability setting, not a binary change — no rebuild needed;
+  after removing China, just resubmit the rejected version with **Update Review → Resubmit to App Review**.)
 
 ## Auto-install on your iPad on each release (local runner)
 

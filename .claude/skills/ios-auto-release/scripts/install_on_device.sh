@@ -11,6 +11,9 @@
 #   PROJECT   path to .xcodeproj  (default: autodetected)
 set -uo pipefail
 
+# Org-standard ASC creds (fallback), then project .env overrides them.
+ORG_ENV="$HOME/.claude/skills/ios-auto-release/org-credentials.env"
+[ -f "$ORG_ENV" ] && { set -a; . "$ORG_ENV"; set +a; }
 [ -f .env ] && { set -a; . ./.env; set +a; }
 if [ -f project.yml ] && command -v xcodegen >/dev/null 2>&1; then xcodegen generate >/dev/null; fi
 
