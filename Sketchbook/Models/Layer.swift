@@ -19,6 +19,9 @@ struct Layer: Identifiable, Codable, Equatable {
     var isReference: Bool
     /// Optional group name for organizing layers (nil = ungrouped).
     var groupName: String?
+    /// Vector shapes baked into this layer, kept so the fill tool can
+    /// tap-to-fill them later. Optional so pre-1.4 documents still decode.
+    var placedShapes: [PlacedShape]?
 
     init(id: UUID = UUID(),
          name: String,
@@ -38,6 +41,7 @@ struct Layer: Identifiable, Codable, Equatable {
         self.imageData = imageData
         self.isReference = isReference
         self.groupName = groupName
+        self.placedShapes = nil
     }
 
     var drawing: PKDrawing {

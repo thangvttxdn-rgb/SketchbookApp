@@ -199,6 +199,8 @@ final class EditorViewModel: ObservableObject {
 
     /// Bake the pending shape into the active layer as PKStrokes (fill + outline),
     /// going through `activeDrawing` so it is one undo step and behaves like ink.
+    /// A `PlacedShape` record is kept alongside so the fill tool can later
+    /// tap-to-fill the shape.
     func commitPendingShape() {
         guard let shape = pendingShape else { return }
         pendingShape = nil
@@ -208,6 +210,14 @@ final class EditorViewModel: ObservableObject {
         var drawing = activeDrawing
         drawing.strokes.append(contentsOf: strokes)
         activeDrawing = drawing   // snapshots + commits
+        let placed = PlacedShape(kind: shape.kind,
+                                 rect: shape.normalizedRect,
+                                 rotation: shape.rotation,
+                                 flipH: shape.flipH,
+                                 flipV: shape.flipV,
+                                 strokeColorHex: UIColor(shape.style.strokeColor).hexString,
+                                 strokeWidth: shape.style.strokeWidth)
+        document.layers[activeIndex].placedShapes = (document.layers[activeIndex].placedShapes ?? []) + [placed]
         Haptics.select()
     }
 
@@ -234,6 +244,20 @@ final class EditorViewModel: ObservableObject {
                 img.draw(in: CGRect(origin: .zero, size: size))
             }
             document.layers[activeIndex].imageData = flipped.pngData()
+        }
+        // Keep the vector-shape records in sync so tap-to-fill still hits them.
+        if var shapes = document.layers[activeIndex].placedShapes {
+            for i in shapes.indices {
+                if horizontal {
+                    shapes[i].rect.origin.x = size.width - shapes[i].rect.maxX
+                    shapes[i].flipH.toggle()
+                } else {
+                    shapes[i].rect.origin.y = size.height - shapes[i].rect.maxY
+                    shapes[i].flipV.toggle()
+                }
+                shapes[i].rotation = -shapes[i].rotation
+            }
+            document.layers[activeIndex].placedShapes = shapes
         }
         invalidateLayerImage(document.layers[activeIndex].id)
         Haptics.select()
@@ -440,10 +464,23 @@ final class EditorViewModel: ObservableObject {
 
     // MARK: - Color fill
 
-    /// Flood-fill from a tap. `point` is in canvas pixel coordinates.
+    /// Fill from a tap, in canvas pixel coordinates. If the tap lands inside a
+    /// vector shape on the active layer, the shape takes a crisp vector fill in
+    /// the current colour (tap again with a new colour to replace it); anywhere
+    /// else falls back to the raster flood fill. Both are single undo steps.
     func performFill(at point: CGPoint) {
         guard document.layers.indices.contains(activeIndex),
               !document.layers[activeIndex].isLocked else { return }
+        if let placed = (document.layers[activeIndex].placedShapes ?? [])
+            .last(where: { ShapeFactory.hitTest($0, point: point) }) {
+            let strokes = ShapeFactory.refillStrokes(for: placed, fillColor: UIColor(color))
+            guard !strokes.isEmpty else { return }
+            var drawing = activeDrawing
+            drawing.strokes.append(contentsOf: strokes)
+            activeDrawing = drawing   // snapshots + commits (one undo step)
+            Haptics.select()
+            return
+        }
         let base = LayerCompositor.composite(document, includeReference: false, scale: 1)
         guard let patch = FloodFill.fill(in: base, at: point, with: UIColor(color)) else { return }
         snapshot()
@@ -456,6 +493,98 @@ final class EditorViewModel: ObservableObject {
         }
         document.layers[activeIndex].imageData = merged.pngData()
         invalidateLayerImage(document.layers[activeIndex].id)
+    }
+
+    // MARK: - Insert image content (Procreate-style "Add")
+
+    /// Insert an image (from Photos or Files) as a NEW content layer, scaled to
+    /// fit within the canvas and centred. Unlike a tracing reference it is part
+    /// of the artwork and included in exports. One undo step.
+    func insertImage(_ image: UIImage) {
+        guard image.size.width > 0, image.size.height > 0 else { return }
+        snapshot()
+        let size = document.canvasSize
+        let ratio = min(size.width * 0.85 / image.size.width,
+                        size.height * 0.85 / image.size.height, 1)
+        let target = CGSize(width: image.size.width * ratio, height: image.size.height * ratio)
+        let origin = CGPoint(x: (size.width - target.width) / 2,
+                             y: (size.height - target.height) / 2)
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1
+        format.opaque = false
+        let composed = UIGraphicsImageRenderer(size: size, format: format).image { _ in
+            image.draw(in: CGRect(origin: origin, size: target))
+        }
+        let layer = Layer(name: "Image \((document.layers.filter { $0.image != nil }.count) + 1)",
+                          imageData: composed.pngData())
+        document.layers.append(layer)
+        document.activeLayerIndex = document.layers.count - 1
+        Haptics.select()
+    }
+
+    // MARK: - Stardust brush
+
+    /// Particles sprinkled during the current drag, previewed by the overlay.
+    @Published var stardustStamps: [StardustStamp] = []
+    private var lastSprinklePoint: CGPoint?
+
+    var isStardustActive: Bool { toolMode == .draw && brush == .stardust }
+
+    /// Scatter stardust along the drag. `point` is in canvas coordinates;
+    /// `displayScale` converts the nominal brush size to canvas pixels so the
+    /// sprinkle matches the on-screen brush size.
+    func sprinkleStardust(at point: CGPoint, displayScale: CGFloat) {
+        guard !activeLayerLocked, stardustStamps.count < Stardust.maxStampsPerStroke else { return }
+        let brushSize = width / max(displayScale, 0.0001) * 0.9
+        let new = Stardust.scatter(from: lastSprinklePoint, to: point, brushSize: brushSize)
+        guard !new.isEmpty || lastSprinklePoint == nil else { return }
+        lastSprinklePoint = point
+        stardustStamps.append(contentsOf: new)
+    }
+
+    /// Bake the sprinkled stamps into the active layer as one undo step.
+    func endStardustStroke() {
+        defer { stardustStamps = []; lastSprinklePoint = nil }
+        guard !activeLayerLocked, !stardustStamps.isEmpty else { return }
+        let strokes = Stardust.strokes(for: stardustStamps, color: UIColor(color))
+        guard !strokes.isEmpty else { return }
+        var drawing = activeDrawing
+        drawing.strokes.append(contentsOf: strokes)
+        activeDrawing = drawing   // snapshots + commits
+        Haptics.select()
+    }
+
+    // MARK: - Adjustments (apply to active layer, undoable)
+
+    func applyAdjustment(_ adjustment: SketchAdjustment, params: [String: Double]) {
+        guard document.layers.indices.contains(activeIndex),
+              !document.layers[activeIndex].isLocked else { return }
+        snapshot()
+        let size = document.canvasSize
+        let rendered = LayerCompositor.renderLayer(document.layers[activeIndex], size: size, scale: 1)
+        let adjusted = AdjustmentEngine.apply(adjustment, to: rendered, params: params)
+        document.layers[activeIndex].imageData = adjusted.pngData()
+        document.layers[activeIndex].drawing = PKDrawing() // baked into the image
+        invalidateLayerImage(document.layers[activeIndex].id)
+        Haptics.select()
+    }
+
+    /// Small composite of the active layer used for the adjustments live preview.
+    func adjustmentPreviewBase(maxDimension: CGFloat = 480) -> UIImage {
+        let size = document.canvasSize
+        let ratio = min(maxDimension / size.width, maxDimension / size.height, 1)
+        let target = CGSize(width: max(size.width * ratio, 1), height: max(size.height * ratio, 1))
+        guard document.layers.indices.contains(activeIndex) else {
+            return UIGraphicsImageRenderer(size: target).image { _ in }
+        }
+        let layer = document.layers[activeIndex]
+        let full = LayerCompositor.renderLayer(layer, size: size, scale: 1)
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1
+        format.opaque = false
+        return UIGraphicsImageRenderer(size: target, format: format).image { _ in
+            full.draw(in: CGRect(origin: .zero, size: target))
+        }
     }
 
     // MARK: - Reference image (upload + overlay for tracing)

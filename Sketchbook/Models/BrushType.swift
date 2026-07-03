@@ -28,6 +28,7 @@ enum BrushType: String, CaseIterable, Codable, Identifiable {
     case watercolor   // Watercolor
     case airbrush     // Airbrush
     case ink          // Ink Bleed
+    case stardust     // Stardust sprinkle (scatters little stars)
 
     var id: String { rawValue }
 
@@ -44,7 +45,7 @@ enum BrushType: String, CaseIterable, Codable, Identifiable {
             return .inking
         case .pencil, .charcoal, .crayon, .chalk, .pastel:
             return .sketching
-        case .marker, .highlighter, .oil, .gouache, .acrylic, .watercolor, .airbrush, .ink:
+        case .marker, .highlighter, .oil, .gouache, .acrylic, .watercolor, .airbrush, .ink, .stardust:
             return .painting
         }
     }
@@ -70,6 +71,7 @@ enum BrushType: String, CaseIterable, Codable, Identifiable {
         case .watercolor: return "Watercolor"
         case .airbrush: return "Airbrush"
         case .ink: return "Ink Bleed"
+        case .stardust: return "Stardust"
         }
     }
 
@@ -94,6 +96,7 @@ enum BrushType: String, CaseIterable, Codable, Identifiable {
         case .watercolor: return "drop"
         case .airbrush: return "wind"
         case .ink: return "drop.fill"
+        case .stardust: return "sparkles"
         }
     }
 
@@ -108,6 +111,7 @@ enum BrushType: String, CaseIterable, Codable, Identifiable {
         case .crayon, .chalk, .pastel: return .crayon
         case .marker, .highlighter, .oil, .gouache, .acrylic, .airbrush: return .marker
         case .watercolor, .ink: return .watercolor
+        case .stardust: return .marker   // placeholder; stardust strokes are stamped, not inked
         }
     }
 
@@ -131,6 +135,7 @@ enum BrushType: String, CaseIterable, Codable, Identifiable {
         case .watercolor: return 24
         case .airbrush: return 26
         case .ink: return 12
+        case .stardust: return 20
         }
     }
 

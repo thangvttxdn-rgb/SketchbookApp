@@ -222,14 +222,17 @@ struct ShapeOutline: Shape {
             p.addRect(rect)
         case .ellipse:
             p.addEllipse(in: rect)
-        case .triangle:
-            p.move(to: CGPoint(x: rect.midX, y: rect.minY))
-            p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
-            p.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
-            p.closeSubpath()
         case .line:
             p.move(to: CGPoint(x: rect.minX, y: rect.minY))
             p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        default:
+            // Polygonal kinds (triangle, diamond, star, pentagon, hexagon,
+            // arrow, heart) share their vertex geometry with the baked strokes.
+            let verts = ShapeFactory.polygonVertices(kind: kind, rect: rect)
+            guard let first = verts.first else { break }
+            p.move(to: first)
+            for v in verts.dropFirst() { p.addLine(to: v) }
+            p.closeSubpath()
         }
         return p
     }

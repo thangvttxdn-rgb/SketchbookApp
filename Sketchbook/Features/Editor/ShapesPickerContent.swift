@@ -25,7 +25,7 @@ struct ShapesPanel: View {
 struct ShapesPickerContent: View {
     @ObservedObject var vm: EditorViewModel
 
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 12), count: 2)
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 12), count: 3)
 
     var body: some View {
         ScrollView {

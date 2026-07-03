@@ -46,12 +46,18 @@ approved on the App Store).
 
 ## P2 — Future features (ideas)
 
-- **Vector shapes** — add a shape tool to draw geometric primitives (line, rectangle,
-  ellipse/circle, polygon, arrow) as editable vector shapes, with snapping and adjustable
-  corner/stroke. Shapes should live on a layer alongside PencilKit strokes.
-- **Fill vector shapes with color** — tap-to-fill a closed vector shape with the current
-  color (solid fill, and ideally gradient), distinct from the existing raster flood-fill;
-  the fill stays crisp/editable because it's vector, not pixel-based.
+- ~~**Vector shapes**~~ — ✅ shipped: 1.3 (rect/circle/triangle/line) + 1.4 (diamond,
+  star, pentagon, hexagon, arrow, heart).
+- ~~**Fill vector shapes with color**~~ — ✅ shipped in 1.4: the fill tool hit-tests
+  placed vector shapes (records kept per layer in `Layer.placedShapes`) and regenerates
+  a crisp vector fill; taps elsewhere still raster flood-fill. Known limitation: the
+  shape record survives even if the shape's strokes are later erased/lasso-deleted, so
+  a tap there still "fills" the ghost shape.
+- Stardust brush (1.4) is stamped via an overlay, so it doesn't work while zoomed
+  (zoom is reset on select, like fill/shape modes) — consider mapping through
+  PencilKit's zoomScale so overlay tools work zoomed-in.
+- Adjustments (1.4) bake the active layer's strokes into a raster image on Apply
+  (same as filters) — layer becomes non-editable ink afterwards.
 - Stroke stabilization / smoothing options.
 - Export to PDF (multi-page) and per-page PNG.
 - Selection transform (move/scale/rotate) beyond PencilKit's lasso.

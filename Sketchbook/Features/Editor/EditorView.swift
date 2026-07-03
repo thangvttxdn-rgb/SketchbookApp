@@ -1,6 +1,7 @@
 import SwiftUI
 import PencilKit
 import PhotosUI
+import UniformTypeIdentifiers
 
 struct EditorView: View {
     @EnvironmentObject private var store: DocumentStore
@@ -15,6 +16,11 @@ struct EditorView: View {
     @State private var draftRect: CGRect?
     @State private var showPhotoPicker = false
     @State private var photoItem: PhotosPickerItem?
+    /// Whether a picked photo becomes artwork content or a tracing reference.
+    private enum PhotoTarget { case insert, reference }
+    @State private var photoTarget: PhotoTarget = .reference
+    @State private var showFileImporter = false
+    @State private var showAdjustments = false
     @State private var arImage: UIImage?
     @StateObject private var canvasHandle = CanvasHandle()
     @ObservedObject private var orientation = OrientationManager.shared
@@ -68,19 +74,38 @@ struct EditorView: View {
         .sheet(isPresented: $showShapes) {
             ShapesPanel(vm: vm).presentationDetents([.medium, .large])
         }
+        .sheet(isPresented: $showAdjustments) {
+            AdjustmentsPanel(vm: vm).presentationDetents([.medium, .large])
+        }
         .onChange(of: vm.toolMode) { _, mode in
-            // Shape placement maps taps at the fit scale; snap zoom so the overlay
-            // registers with the canvas content.
-            if mode == .shape { canvasHandle.resetZoom() }
+            // Shape/fill/stardust placement maps taps at the fit scale; snap zoom
+            // so the overlay registers with the canvas content.
+            if mode == .shape || mode == .fill { canvasHandle.resetZoom() }
+        }
+        .onChange(of: vm.brush) { _, brush in
+            if brush == .stardust { canvasHandle.resetZoom() }
         }
         .photosPicker(isPresented: $showPhotoPicker, selection: $photoItem, matching: .images)
         .onChange(of: photoItem) { _, item in
             guard let item else { return }
+            let target = photoTarget
+            photoItem = nil
             Task {
                 if let data = try? await item.loadTransferable(type: Data.self),
                    let image = UIImage(data: data) {
-                    vm.importReference(image)
+                    switch target {
+                    case .insert: vm.insertImage(image)
+                    case .reference: vm.importReference(image)
+                    }
                 }
+            }
+        }
+        .fileImporter(isPresented: $showFileImporter, allowedContentTypes: [.image]) { result in
+            guard case .success(let url) = result else { return }
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            if let data = try? Data(contentsOf: url), let image = UIImage(data: data) {
+                vm.insertImage(image)
             }
         }
         .fullScreenCover(item: Binding(get: { arImage.map { ARImageBox(image: $0) } },
@@ -215,6 +240,7 @@ struct EditorView: View {
                     shapesButton
                     toolButton(.fill)
                     toolButton(.lasso)
+                    iconButton("wand.and.stars", label: "Adjustments") { showAdjustments = true }
                 }
                 .padding(.horizontal, 2)
             }
@@ -327,8 +353,19 @@ struct EditorView: View {
                       systemImage: vm.fingerDrawingEnabled ? "hand.draw.fill" : "hand.draw")
             }
             orientationMenuContent
-            Button { showPhotoPicker = true } label: {
-                Label("Import Reference Photo", systemImage: "photo.on.rectangle.angled")
+            Menu {
+                Button { photoTarget = .insert; showPhotoPicker = true } label: {
+                    Label("Insert a Photo", systemImage: "photo")
+                }
+                Button { showFileImporter = true } label: {
+                    Label("Insert a File", systemImage: "folder")
+                }
+                Divider()
+                Button { photoTarget = .reference; showPhotoPicker = true } label: {
+                    Label("Import Reference Photo", systemImage: "photo.on.rectangle.angled")
+                }
+            } label: {
+                Label("Add Image", systemImage: "plus.square.on.square")
             }
             Button { arImage = vm.exportedImage() } label: {
                 Label("View in AR", systemImage: "arkit")
@@ -346,16 +383,24 @@ struct EditorView: View {
     }
 
     private var widthPopover: some View {
-        VStack(alignment: .leading) {
+        VStack(alignment: .leading, spacing: 10) {
             if vm.toolMode == .erase {
-                Text("Eraser Size: \(Int(vm.eraseWidth))").font(.subheadline)
-                Slider(value: $vm.eraseWidth, in: 6...80)
+                Text("Eraser Size: \(Int(vm.eraseWidth)) pt").font(.subheadline)
+                HStack(spacing: 12) {
+                    Slider(value: $vm.eraseWidth, in: 4...120)
+                    Circle()
+                        .stroke(Theme.ink.opacity(0.7), lineWidth: 1.5)
+                        .background(Circle().fill(Theme.ink.opacity(0.08)))
+                        .frame(width: min(vm.eraseWidth * 0.4, 36) + 6,
+                               height: min(vm.eraseWidth * 0.4, 36) + 6)
+                        .frame(width: 44, height: 44)
+                }
             } else {
                 Text("Brush Size: \(Int(vm.width))").font(.subheadline)
                 Slider(value: $vm.width, in: 1...60)
             }
         }
-        .padding().frame(width: 260)
+        .padding().frame(width: 280)
     }
 
     /// Rulers, symmetry guides, page templates and filter effects — embedded in
@@ -492,6 +537,11 @@ struct EditorView: View {
                             .frame(width: disp.width, height: disp.height)
                     }
                 }
+
+                // Stardust brush: drag to sprinkle stars, baked on release.
+                if vm.isStardustActive {
+                    stardustCatcher(disp: disp, scale: scale)
+                }
             }
             .frame(width: disp.width, height: disp.height)
             .clipped()
@@ -531,6 +581,32 @@ struct EditorView: View {
         }
     }
 
+    /// Sprinkles stardust along the drag with a live preview; the stamps are
+    /// baked into the layer as strokes when the finger lifts (one undo step).
+    @ViewBuilder
+    private func stardustCatcher(disp: CGSize, scale: CGFloat) -> some View {
+        ZStack {
+            Color.clear.contentShape(Rectangle())
+                .frame(width: disp.width, height: disp.height)
+                .gesture(DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        let s = max(scale, 0.0001)
+                        vm.sprinkleStardust(at: CGPoint(x: value.location.x / s,
+                                                        y: value.location.y / s),
+                                            displayScale: s)
+                    }
+                    .onEnded { _ in vm.endStardustStroke() })
+            Canvas { ctx, _ in
+                for stamp in vm.stardustStamps {
+                    ctx.fill(Stardust.previewPath(for: stamp, scale: scale),
+                             with: .color(vm.color.opacity(stamp.alpha)))
+                }
+            }
+            .frame(width: disp.width, height: disp.height)
+            .allowsHitTesting(false)
+        }
+    }
+
     private func canvasRect(_ a: CGPoint, _ b: CGPoint, scale: CGFloat) -> CGRect {
         let s = max(scale, 0.0001)
         return CGRect(x: min(a.x, b.x) / s, y: min(a.y, b.y) / s,
@@ -555,7 +631,8 @@ struct EditorView: View {
                            pencilOnly: vm.pencilOnly && vm.toolMode != .lasso,
                            symmetry: vm.symmetry,
                            canvasSize: canvasSize,
-                           isLocked: layer.isLocked || vm.toolMode == .fill || vm.toolMode == .shape,
+                           isLocked: layer.isLocked || vm.toolMode == .fill || vm.toolMode == .shape
+                               || vm.isStardustActive,
                            handle: canvasHandle,
                            onSwipeUp: { vm.nextPage() },
                            onSwipeDown: { vm.previousPage() })
