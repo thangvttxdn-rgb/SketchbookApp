@@ -174,23 +174,48 @@ final class V14FeatureUITests: XCTestCase {
         snapshot("v14-08-eraser-size")
     }
 
-    /// iPad pages sidebar: manual expand, add a page, delete it again.
+    /// iPad pages sidebar: manual expand, thumbnails show content, drag to
+    /// reorder, tap-to-switch, delete.
     func testPagesSidebar() {
         let app = XCUIApplication()
         newSketch(app)
+        // Draw on page 1 so its thumbnail has visible content.
+        let a = app.coordinate(withNormalizedOffset: CGVector(dx: 0.35, dy: 0.4))
+        let b = app.coordinate(withNormalizedOffset: CGVector(dx: 0.6, dy: 0.55))
+        a.press(forDuration: 0.2, thenDragTo: b, withVelocity: 150, thenHoldForDuration: 0.2)
+        sleep(1)
+
         let show = app.buttons["Show pages"].firstMatch
         guard show.waitForExistence(timeout: 5) else { return }   // compact width: no sidebar
         show.tap()
         sleep(1)
         snapshot("v14-11-pages-sidebar")
 
+        // Add a blank page 2 (becomes current).
         let addPage = app.buttons["Add page"].firstMatch
         XCTAssertTrue(addPage.waitForExistence(timeout: 5))
         addPage.tap()
         sleep(1)
         XCTAssertTrue(app.staticTexts["pageIndicator"].label.contains("2 / 2"))
 
-        let del = app.buttons["Delete page 2"].firstMatch
+        // Drag page 1 (the drawing) onto page 2 → order flips; the current
+        // (blank) page moves up to index 0.
+        let thumb1 = app.images["pageThumb1"].firstMatch
+        let thumb2 = app.images["pageThumb2"].firstMatch
+        XCTAssertTrue(thumb1.waitForExistence(timeout: 5))
+        thumb1.press(forDuration: 1.2, thenDragTo: thumb2)
+        sleep(1)
+        XCTAssertTrue(app.staticTexts["pageIndicator"].label.contains("1 / 2"),
+                      "drag reorder should move the blank current page to slot 1")
+        snapshot("v14-13-pages-reordered")
+
+        // Tap page 2 (now the drawing) to switch to it.
+        thumb2.tap()
+        sleep(1)
+        XCTAssertTrue(app.staticTexts["pageIndicator"].label.contains("2 / 2"))
+
+        // Delete the blank page 1.
+        let del = app.buttons["Delete page 1"].firstMatch
         XCTAssertTrue(del.waitForExistence(timeout: 5))
         del.tap()
         sleep(1)

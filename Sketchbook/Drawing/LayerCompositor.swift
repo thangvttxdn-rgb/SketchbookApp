@@ -48,16 +48,22 @@ enum LayerCompositor {
                             height: max(canvasSize.height * ratio, 1))
         let format = UIGraphicsImageRendererFormat.default()
         format.scale = 2   // crisp on retina at thumbnail size
-        return UIGraphicsImageRenderer(size: target, format: format).image { ctx in
-            let rect = CGRect(origin: .zero, size: target)
-            UIColor(hex: backgroundHex).setFill()
-            ctx.cgContext.fill(rect)
-            for layer in page.layers where layer.isVisible && !layer.isReference {
-                layer.image?.draw(in: rect, blendMode: .normal, alpha: layer.opacity)
-                layer.drawing.image(from: CGRect(origin: .zero, size: canvasSize), scale: ratio)
-                    .draw(in: rect, blendMode: .normal, alpha: layer.opacity)
+        // Render under LIGHT traits: in Dark Mode PencilKit inverts ink colours
+        // (black → white), which blanks the thumbnails on their white paper.
+        var result = UIImage()
+        UITraitCollection(userInterfaceStyle: .light).performAsCurrent {
+            result = UIGraphicsImageRenderer(size: target, format: format).image { ctx in
+                let rect = CGRect(origin: .zero, size: target)
+                UIColor(hex: backgroundHex).setFill()
+                ctx.cgContext.fill(rect)
+                for layer in page.layers where layer.isVisible && !layer.isReference {
+                    layer.image?.draw(in: rect, blendMode: .normal, alpha: layer.opacity)
+                    layer.drawing.image(from: CGRect(origin: .zero, size: canvasSize), scale: ratio)
+                        .draw(in: rect, blendMode: .normal, alpha: layer.opacity)
+                }
             }
         }
+        return result
     }
 
     static func thumbnail(_ document: SketchDocument, maxDimension: CGFloat = 600) -> UIImage {

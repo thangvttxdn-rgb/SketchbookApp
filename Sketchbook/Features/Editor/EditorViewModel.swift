@@ -417,13 +417,21 @@ final class EditorViewModel: ObservableObject {
         return img
     }
 
-    /// One snapshot at drag start; the live reorder moves without snapshotting.
-    func beginPageReorder() { snapshot() }
+    /// True while a drag-reorder is in flight (one undo snapshot per drag).
+    private var pageReorderSnapshotted = false
 
-    /// Reorder pages during a drag (no snapshot — `beginPageReorder` took one).
+    func endPageReorder() { pageReorderSnapshotted = false }
+
+    /// Reorder pages during a drag. Snapshots lazily on the FIRST move of a
+    /// drag — snapshotting at drag-lift re-renders the sidebar and cancels the
+    /// drag session.
     func movePage(fromIndex: Int, toIndex: Int) {
         guard document.pages.indices.contains(fromIndex),
               toIndex >= 0, toIndex < document.pages.count, fromIndex != toIndex else { return }
+        if !pageReorderSnapshotted {
+            snapshot()
+            pageReorderSnapshotted = true
+        }
         let currentId = document.pages[document.currentPageIndex].id
         let page = document.pages.remove(at: fromIndex)
         document.pages.insert(page, at: toIndex)

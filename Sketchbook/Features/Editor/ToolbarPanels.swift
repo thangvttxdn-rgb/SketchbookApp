@@ -145,6 +145,8 @@ struct LayersPanel: View {
     @Environment(\.dismiss) private var dismiss
     @State private var groupingIndex: Int?
     @State private var newGroupName = ""
+    @State private var renamingIndex: Int?
+    @State private var newLayerName = ""
 
     var body: some View {
         NavigationStack {
@@ -177,14 +179,22 @@ struct LayersPanel: View {
 
                 Section("Layers") {
                     ForEach(Array(vm.document.layers.enumerated()), id: \.element.id) { idx, layer in
-                        LayerRow(vm: vm, index: idx, layer: layer) {
-                            groupingIndex = idx
-                            newGroupName = layer.groupName ?? ""
-                        }
+                        LayerRow(vm: vm, index: idx, layer: layer,
+                                 onGroup: {
+                                     groupingIndex = idx
+                                     newGroupName = layer.groupName ?? ""
+                                 },
+                                 onRename: {
+                                     renamingIndex = idx
+                                     newLayerName = layer.name
+                                 })
                     }
                     .onDelete { offsets in offsets.forEach { vm.deleteLayer(at: $0) } }
                     .onMove { source, dest in vm.moveLayer(from: source, to: dest) }
                 }
+                Text("Tap a layer to select it. Hold and drag to reorder; swipe left to delete.")
+                    .font(.caption).foregroundStyle(Theme.mutedInk)
+                    .listRowBackground(Color.clear)
             }
             .navigationTitle("Layers")
             .navigationBarTitleDisplayMode(.inline)
@@ -204,6 +214,17 @@ struct LayersPanel: View {
                 }
                 Button("Cancel", role: .cancel) { groupingIndex = nil }
             }
+            .alert("Rename Layer", isPresented: Binding(get: { renamingIndex != nil },
+                                                        set: { if !$0 { renamingIndex = nil } })) {
+                TextField("Layer name", text: $newLayerName)
+                Button("Save") {
+                    if let i = renamingIndex, !newLayerName.trimmingCharacters(in: .whitespaces).isEmpty {
+                        vm.renameLayer(at: i, to: newLayerName)
+                    }
+                    renamingIndex = nil
+                }
+                Button("Cancel", role: .cancel) { renamingIndex = nil }
+            }
         }
     }
 }
@@ -213,6 +234,7 @@ struct LayerRow: View {
     let index: Int
     let layer: Layer
     var onGroup: () -> Void
+    var onRename: () -> Void
 
     var body: some View {
         HStack(spacing: 10) {
@@ -224,11 +246,13 @@ struct LayerRow: View {
             }
             .buttonStyle(.plain)
 
+            // Plain text (NOT a TextField): tapping a row must select the
+            // layer, never focus a text editor / pop the keyboard. Renaming
+            // lives behind the row menu.
             VStack(alignment: .leading, spacing: 2) {
-                TextField("Layer", text: Binding(
-                    get: { layer.name },
-                    set: { vm.renameLayer(at: index, to: $0) }))
+                Text(layer.name)
                     .foregroundStyle(Theme.ink)
+                    .lineLimit(1)
                 HStack(spacing: 6) {
                     if let g = layer.groupName {
                         Label(g, systemImage: "folder").font(.caption2).foregroundStyle(Theme.secondary)
@@ -236,20 +260,28 @@ struct LayerRow: View {
                     if layer.isReference {
                         Text("Reference").font(.caption2).foregroundStyle(Theme.secondary)
                     }
+                    if layer.isLocked {
+                        Image(systemName: "lock.fill").font(.caption2).foregroundStyle(Theme.secondary)
+                    }
                 }
             }
+            Spacer(minLength: 0)
 
             if index == vm.activeIndex {
                 Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.primary)
             }
             Menu {
                 Button { vm.setActiveLayer(index) } label: { Label("Select", systemImage: "hand.tap") }
+                Button(action: onRename) { Label("Rename…", systemImage: "pencil") }
                 Button(action: onGroup) { Label("Move to Group…", systemImage: "folder.badge.plus") }
                 if layer.groupName != nil {
                     Button { vm.setGroup(at: index, to: nil) } label: { Label("Ungroup", systemImage: "folder.badge.minus") }
                 }
                 Button { vm.document.layers[index].isLocked.toggle() } label: {
                     Label(layer.isLocked ? "Unlock" : "Lock", systemImage: layer.isLocked ? "lock.open" : "lock")
+                }
+                Button(role: .destructive) { vm.deleteLayer(at: index) } label: {
+                    Label("Delete Layer", systemImage: "trash")
                 }
             } label: {
                 Image(systemName: "ellipsis.circle").foregroundStyle(Theme.mutedInk)

@@ -60,6 +60,7 @@ struct PagesSidebar: View {
             Image(uiImage: vm.pageThumbnail(index))
                 .resizable()
                 .scaledToFit()
+                .accessibilityIdentifier("pageThumb\(index + 1)")
                 .frame(maxWidth: .infinity)
                 .background(Color.white)
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
@@ -84,16 +85,17 @@ struct PagesSidebar: View {
                 .foregroundStyle(isCurrent ? Theme.primary : Theme.mutedInk)
         }
         .contentShape(Rectangle())
-        .opacity(draggingIndex == index ? 0.4 : 1)
-        .onTapGesture { vm.goToPage(index) }
+        // onDrag must come BEFORE any tap handling — a plain .onTapGesture on
+        // the same view blocks the long-press drag lift. The tap is attached
+        // as a simultaneous gesture instead.
         .onDrag {
-            if draggingIndex == nil { vm.beginPageReorder() }
             draggingIndex = index
             return NSItemProvider(object: "\(index)" as NSString)
         }
         .onDrop(of: [UTType.text], delegate: PageDropDelegate(index: index,
                                                               draggingIndex: $draggingIndex,
                                                               vm: vm))
+        .simultaneousGesture(TapGesture().onEnded { vm.goToPage(index) })
     }
 }
 
@@ -113,6 +115,7 @@ private struct PageDropDelegate: DropDelegate {
 
     func performDrop(info: DropInfo) -> Bool {
         draggingIndex = nil
+        vm.endPageReorder()
         Haptics.select()
         return true
     }
