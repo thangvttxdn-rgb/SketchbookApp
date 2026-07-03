@@ -44,8 +44,8 @@ struct ShapesPickerContent: View {
                     }
                     HStack(spacing: 12) {
                         Text("Width").font(.subheadline).foregroundStyle(Theme.ink)
-                        Slider(value: $vm.width, in: 1...60)
-                        Text("\(Int(vm.width)) pt").font(.subheadline.monospacedDigit())
+                        Slider(value: $vm.shapeStrokeWidth, in: 1...40)
+                        Text("\(Int(vm.shapeStrokeWidth)) pt").font(.subheadline.monospacedDigit())
                             .foregroundStyle(Theme.ink).frame(width: 46, alignment: .trailing)
                     }
                 }

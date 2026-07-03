@@ -33,6 +33,9 @@ struct CanvasView: UIViewRepresentable {
     /// Forceful two-finger swipes used to flip / create pages.
     var onSwipeUp: (() -> Void)?
     var onSwipeDown: (() -> Void)?
+    /// Apple Pencil double-tap (2nd gen) / squeeze (Pencil Pro) — used to
+    /// toggle between the current tool and the eraser.
+    var onPencilAction: (() -> Void)?
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -41,16 +44,28 @@ struct CanvasView: UIViewRepresentable {
         canvas.delegate = context.coordinator
         handle?.canvas = canvas
 
-        // Two-finger flick up/down → page navigation. Two fingers keeps the
-        // single finger / Pencil free for drawing, and a swipe (not a pinch)
-        // doesn't interfere with pinch-to-zoom.
-        for direction in [UISwipeGestureRecognizer.Direction.up, .down] {
-            let swipe = UISwipeGestureRecognizer(target: context.coordinator,
-                                                 action: #selector(Coordinator.handleSwipe(_:)))
-            swipe.direction = direction
-            swipe.numberOfTouchesRequired = 2
-            swipe.delegate = context.coordinator
-            canvas.addGestureRecognizer(swipe)
+        let pencil = UIPencilInteraction()
+        pencil.delegate = context.coordinator
+        canvas.addInteraction(pencil)
+
+        // Flick up/down → page navigation. Two-finger swipes always work (they
+        // don't collide with drawing); single-finger swipes are honoured only
+        // in Pencil-only mode, where fingers don't draw (see handleSwipe).
+        for touches in [1, 2] {
+            for direction in [UISwipeGestureRecognizer.Direction.up, .down] {
+                let swipe = UISwipeGestureRecognizer(target: context.coordinator,
+                                                     action: #selector(Coordinator.handleSwipe(_:)))
+                swipe.direction = direction
+                swipe.numberOfTouchesRequired = touches
+                swipe.delegate = context.coordinator
+                canvas.addGestureRecognizer(swipe)
+                // With finger drawing ON, PencilKit's drawing recognizer would
+                // otherwise swallow two-finger flicks — make it wait for the
+                // swipe to fail (fails within a few ms for normal strokes).
+                if touches == 2 {
+                    canvas.drawingGestureRecognizer.require(toFail: swipe)
+                }
+            }
         }
         canvas.drawing = drawing
         canvas.backgroundColor = .clear
@@ -124,7 +139,8 @@ struct CanvasView: UIViewRepresentable {
         canvas.overrideUserInterfaceStyle = .light
     }
 
-    final class Coordinator: NSObject, PKCanvasViewDelegate, UIGestureRecognizerDelegate {
+    final class Coordinator: NSObject, PKCanvasViewDelegate, UIGestureRecognizerDelegate,
+                             UIPencilInteractionDelegate {
         var parent: CanvasView
         var isApplyingSymmetry = false
         var didInitialZoom = false
@@ -148,6 +164,9 @@ struct CanvasView: UIViewRepresentable {
         func syncStrokeCount(_ count: Int) { lastStrokeCount = count }
 
         @objc func handleSwipe(_ gr: UISwipeGestureRecognizer) {
+            // A single-finger flick is a drawing gesture when finger drawing is
+            // on — only treat it as a page swipe in Pencil-only mode.
+            if gr.numberOfTouchesRequired == 1 && !parent.pencilOnly { return }
             switch gr.direction {
             case .up: parent.onSwipeUp?()
             case .down: parent.onSwipeDown?()
@@ -158,6 +177,24 @@ struct CanvasView: UIViewRepresentable {
         // Allow the page-swipe to coexist with PencilKit's own gestures.
         func gestureRecognizer(_ g: UIGestureRecognizer,
                                shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
+
+        // MARK: Apple Pencil double-tap / squeeze → toggle eraser
+
+        func pencilInteractionDidTap(_ interaction: UIPencilInteraction) {
+            parent.onPencilAction?()
+        }
+
+        @available(iOS 17.5, *)
+        func pencilInteraction(_ interaction: UIPencilInteraction,
+                               didReceiveTap tap: UIPencilInteraction.Tap) {
+            parent.onPencilAction?()
+        }
+
+        @available(iOS 17.5, *)
+        func pencilInteraction(_ interaction: UIPencilInteraction,
+                               didReceiveSqueeze squeeze: UIPencilInteraction.Squeeze) {
+            if squeeze.phase == .ended { parent.onPencilAction?() }
+        }
 
         func canvasViewDidBeginUsingTool(_ canvasView: PKCanvasView) {
             isDrawing = true

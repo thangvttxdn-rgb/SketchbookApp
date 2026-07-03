@@ -2,12 +2,13 @@ import SwiftUI
 
 /// Tabs available in the iPad right-side panel.
 enum SidePanelTab: String, CaseIterable, Identifiable {
-    case brush, shapes, color, layers
+    case brush, shapes, adjust, color, layers
     var id: String { rawValue }
     var systemImage: String {
         switch self {
         case .brush: return "paintbrush.pointed.fill"
         case .shapes: return "square.on.circle"
+        case .adjust: return "wand.and.stars"
         case .color: return "paintpalette.fill"
         case .layers: return "square.3.layers.3d"
         }
@@ -16,6 +17,7 @@ enum SidePanelTab: String, CaseIterable, Identifiable {
         switch self {
         case .brush: return "Brushes"
         case .shapes: return "Shapes"
+        case .adjust: return "Adjustments"
         case .color: return "Color"
         case .layers: return "Layers"
         }
@@ -80,6 +82,8 @@ struct EditorSidePanel: View {
             BrushPickerContent(vm: vm).background(Theme.background)
         case .shapes:
             ShapesPickerContent(vm: vm)
+        case .adjust:
+            AdjustmentsPanel(vm: vm, embedded: true)
         case .color:
             ColorPickerContent(vm: vm)
         case .layers:

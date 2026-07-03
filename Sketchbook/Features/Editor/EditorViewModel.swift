@@ -23,16 +23,27 @@ final class EditorViewModel: ObservableObject {
     static let defaultBrushSize: CGFloat = 20
 
     @Published var brush: BrushType = .pen
-    @Published var color: Color = .black
-    @Published var width: CGFloat = EditorViewModel.defaultBrushSize
+    @Published var color: Color = .black { didSet { syncPendingShapeStyle() } }
+    @Published var width: CGFloat = EditorViewModel.defaultBrushSize { didSet { syncPendingShapeStyle() } }
     @Published var eraseWidth: CGFloat = 24
     @Published var toolMode: ToolMode = .draw
     // MARK: Vector shapes
     @Published var shapeKind: ShapeKind = .rectangle
-    @Published var shapeFillEnabled: Bool = false
-    @Published var shapeFillColor: Color = Color(hex: "#4C6EF5")
+    /// Outline width for vector shapes — independent of the brush size so
+    /// shape borders default to a slim outline.
+    @Published var shapeStrokeWidth: CGFloat = 6 { didSet { syncPendingShapeStyle() } }
+    @Published var shapeFillEnabled: Bool = false { didSet { syncPendingShapeStyle() } }
+    @Published var shapeFillColor: Color = Color(hex: "#4C6EF5") { didSet { syncPendingShapeStyle() } }
     /// A shape being dragged out / adjusted via handles before it is baked in.
     @Published var pendingShape: PendingShape?
+
+    /// Keep the live (pending) shape's style following the pickers, so toggling
+    /// "Fill shape" or changing colours/width AFTER dragging the shape out
+    /// updates it immediately instead of silently doing nothing.
+    private func syncPendingShapeStyle() {
+        guard pendingShape != nil else { return }
+        pendingShape?.style = currentShapeStyle
+    }
     @Published var isRulerActive = false
     @Published var symmetry: SymmetryMode = .off
     @Published var perspective: PerspectiveGuide = .off
@@ -72,6 +83,7 @@ final class EditorViewModel: ObservableObject {
         redoStack.append(document)
         document = prev
         invalidateLayerImage(nil)
+        pageThumbCache.removeAll()
         Haptics.select()
     }
 
@@ -80,6 +92,7 @@ final class EditorViewModel: ObservableObject {
         undoStack.append(document)
         document = next
         invalidateLayerImage(nil)
+        pageThumbCache.removeAll()
         Haptics.select()
     }
 
@@ -176,9 +189,10 @@ final class EditorViewModel: ObservableObject {
 
     // MARK: - Vector shapes
 
-    /// Style captured from the current stroke colour / width + shape fill choice.
+    /// Style captured from the current stroke colour / shape outline width +
+    /// shape fill choice.
     var currentShapeStyle: ShapeStyle {
-        ShapeStyle(strokeColor: color, strokeWidth: width,
+        ShapeStyle(strokeColor: color, strokeWidth: shapeStrokeWidth,
                    fillColor: (shapeFillEnabled && shapeKind.canFill) ? shapeFillColor : nil)
     }
 
@@ -285,6 +299,13 @@ final class EditorViewModel: ObservableObject {
         Haptics.select()
     }
 
+    /// Apple Pencil double-tap / squeeze: toggle between the eraser and the
+    /// drawing tool (returning to draw mode from any non-erase tool).
+    func togglePencilEraser() {
+        toolMode = (toolMode == .erase) ? .draw : .erase
+        Haptics.select()
+    }
+
     // MARK: - Finger drawing
 
     /// Whether finger (touch) input draws. When off, only Apple Pencil draws and
@@ -376,6 +397,55 @@ final class EditorViewModel: ObservableObject {
     func clearAllPages() {
         snapshot()
         for i in document.pages.indices { document.pages[i] = Page() }
+        invalidateLayerImage(nil)
+        Haptics.select()
+    }
+
+    // MARK: - Pages sidebar (thumbnails, reorder, delete)
+
+    private var pageThumbCache: [UUID: UIImage] = [:]
+
+    /// Thumbnail for the pages sidebar. Cached per page; the current page's
+    /// cache entry is dropped on every undoable change (see `snapshot`).
+    func pageThumbnail(_ index: Int) -> UIImage {
+        guard document.pages.indices.contains(index) else { return UIImage() }
+        let page = document.pages[index]
+        if index != document.currentPageIndex, let cached = pageThumbCache[page.id] { return cached }
+        let img = LayerCompositor.renderPage(page, canvasSize: document.canvasSize,
+                                             backgroundHex: document.backgroundHex)
+        pageThumbCache[page.id] = img
+        return img
+    }
+
+    /// One snapshot at drag start; the live reorder moves without snapshotting.
+    func beginPageReorder() { snapshot() }
+
+    /// Reorder pages during a drag (no snapshot — `beginPageReorder` took one).
+    func movePage(fromIndex: Int, toIndex: Int) {
+        guard document.pages.indices.contains(fromIndex),
+              toIndex >= 0, toIndex < document.pages.count, fromIndex != toIndex else { return }
+        let currentId = document.pages[document.currentPageIndex].id
+        let page = document.pages.remove(at: fromIndex)
+        document.pages.insert(page, at: toIndex)
+        if let idx = document.pages.firstIndex(where: { $0.id == currentId }) {
+            document.currentPageIndex = idx
+        }
+        invalidateLayerImage(nil)
+    }
+
+    /// Delete a specific page (undoable). The last remaining page is cleared
+    /// instead of removed.
+    func deletePage(at index: Int) {
+        guard document.pages.indices.contains(index) else { return }
+        guard document.pages.count > 1 else { clearCurrentPage(); return }
+        snapshot()
+        pageThumbCache.removeValue(forKey: document.pages[index].id)
+        document.pages.remove(at: index)
+        if document.currentPageIndex >= document.pages.count {
+            document.currentPageIndex = document.pages.count - 1
+        } else if index < document.currentPageIndex {
+            document.currentPageIndex -= 1
+        }
         invalidateLayerImage(nil)
         Haptics.select()
     }

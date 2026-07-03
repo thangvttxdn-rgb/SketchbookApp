@@ -26,9 +26,11 @@ struct EditorView: View {
     @ObservedObject private var orientation = OrientationManager.shared
     @Environment(\.horizontalSizeClass) private var hSize
 
-    // iPad right-side panel state.
+    // iPad side panel state — both panels start collapsed; the user expands
+    // and collapses them manually via the edge affordances.
     @State private var sidePanelTab: SidePanelTab = .brush
-    @State private var sidePanelCollapsed = false
+    @State private var sidePanelCollapsed = true
+    @State private var pagesPanelCollapsed = true
 
     // Confirmation for destructive "all pages" actions.
     private enum PageConfirm { case clearAll, deleteAll }
@@ -43,6 +45,17 @@ struct EditorView: View {
 
     var body: some View {
         HStack(spacing: 0) {
+            // iPad: docked, collapsible pages sidebar on the left.
+            if isRegular {
+                if pagesPanelCollapsed {
+                    expandPagesButton
+                } else {
+                    PagesSidebar(vm: vm) {
+                        withAnimation(.easeInOut(duration: 0.22)) { pagesPanelCollapsed = true }
+                    }
+                    .transition(.move(edge: .leading))
+                }
+            }
             VStack(spacing: 0) {
                 topBar
                 Divider()
@@ -63,7 +76,16 @@ struct EditorView: View {
             }
         }
         .background(Theme.background.ignoresSafeArea())
-        .onAppear { vm.attach(store: store) }
+        .onAppear {
+            vm.attach(store: store)
+            // Default to a landscape-locked canvas on iPad; unlock or re-lock
+            // any time via ••• → Orientation. (Disabled under UI tests, where
+            // a forced rotation desyncs XCUITest's coordinate space.)
+            let uiTestNoLock = ProcessInfo.processInfo.environment["UITEST_DISABLE_ORIENTATION_LOCK"] != nil
+            if isRegular && !orientation.isLocked && !uiTestNoLock {
+                orientation.lock(to: .landscape)
+            }
+        }
         .onDisappear { vm.save(); orientation.unlock() }
         .sheet(isPresented: $showLayers) {
             LayersPanel(vm: vm).presentationDetents([.medium, .large])
@@ -112,6 +134,23 @@ struct EditorView: View {
                                        set: { arImage = $0?.image })) { box in
             ARSketchScreen(image: box.image)
         }
+    }
+
+    /// Thin affordance shown on the left edge when the pages sidebar is collapsed.
+    private var expandPagesButton: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.22)) { pagesPanelCollapsed = false }
+        } label: {
+            Image(systemName: "sidebar.left")
+                .font(.title3)
+                .foregroundStyle(Theme.ink)
+                .frame(width: 44)
+                .frame(maxHeight: .infinity)
+                .background(Theme.surface)
+        }
+        .help("Show pages")
+        .accessibilityLabel("Show pages")
+        .overlay(Divider(), alignment: .trailing)
     }
 
     /// Thin affordance shown on the right edge when the iPad panel is collapsed.
@@ -203,11 +242,11 @@ struct EditorView: View {
         }
     }
 
-    /// Open the iPad panel to a tab, or fall back to a sheet on iPhone.
+    /// Route a picker to the iPad side panel ONLY when the user already has it
+    /// expanded (panels never auto-expand); otherwise fall back to a sheet.
     private func openPicker(_ tab: SidePanelTab, sheet: () -> Void) {
-        if isRegular {
+        if isRegular && !sidePanelCollapsed {
             sidePanelTab = tab
-            withAnimation(.easeInOut(duration: 0.22)) { sidePanelCollapsed = false }
         } else {
             sheet()
         }
@@ -240,7 +279,11 @@ struct EditorView: View {
                     shapesButton
                     toolButton(.fill)
                     toolButton(.lasso)
-                    iconButton("wand.and.stars", label: "Adjustments") { showAdjustments = true }
+                    iconButton("wand.and.stars", label: "Adjustments") {
+                        openPicker(.adjust) { showAdjustments = true }
+                    }
+                    gridMenuButton
+                    transformMenuButton
                 }
                 .padding(.horizontal, 2)
             }
@@ -331,6 +374,44 @@ struct EditorView: View {
         .accessibilityLabel("Shapes")
     }
 
+    /// Grid / template picker, promoted from the overflow menu to the top bar.
+    private var gridMenuButton: some View {
+        Menu {
+            ForEach(TemplateKind.allCases) { kind in
+                Button { vm.setTemplate(kind) } label: {
+                    Label(kind.title, systemImage: vm.document.template == kind ? "checkmark" : kind.systemImage)
+                }
+            }
+        } label: {
+            Image(systemName: "grid")
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
+        }
+        .help("Grid & Template")
+        .accessibilityLabel("Grid")
+    }
+
+    /// Flip / fit transform menu, promoted from the overflow menu to the top bar.
+    private var transformMenuButton: some View {
+        Menu {
+            Button { vm.flipHorizontal() } label: {
+                Label("Flip Horizontal", systemImage: "arrow.left.and.right.righttriangle.left.righttriangle.right")
+            }
+            Button { vm.flipVertical() } label: {
+                Label("Flip Vertical", systemImage: "arrow.up.and.down.righttriangle.up.righttriangle.down")
+            }
+            Button { canvasHandle.resetZoom() } label: {
+                Label("Fit to Canvas", systemImage: "arrow.up.left.and.down.right.magnifyingglass")
+            }
+        } label: {
+            Image(systemName: "crop.rotate")
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
+        }
+        .help("Transform")
+        .accessibilityLabel("Transform")
+    }
+
     private func toolButton(_ mode: ToolMode) -> some View {
         Button { vm.toolMode = mode } label: {
             Image(systemName: mode.systemImage)
@@ -346,7 +427,6 @@ struct EditorView: View {
     private var overflowMenu: some View {
         Menu {
             guidesMenuContent
-            transformMenuContent
             Divider()
             Button { vm.setFingerDrawing(!vm.fingerDrawingEnabled) } label: {
                 Label(vm.fingerDrawingEnabled ? "Finger Drawing: On" : "Finger Drawing: Off",
@@ -430,14 +510,6 @@ struct EditorView: View {
                 }
             }
 
-            Menu("Template") {
-                ForEach(TemplateKind.allCases) { kind in
-                    Button { vm.setTemplate(kind) } label: {
-                        Label(kind.title, systemImage: vm.document.template == kind ? "checkmark" : kind.systemImage)
-                    }
-                }
-            }
-
             Menu("Filter Effect") {
                 ForEach(SketchFilter.photo) { f in
                     Button { vm.applyFilter(f) } label: { Text(f.title) }
@@ -454,22 +526,6 @@ struct EditorView: View {
                 ForEach(SketchFilter.distort) { f in
                     Button { vm.applyFilter(f) } label: { Text(f.title) }
                 }
-            }
-        }
-    }
-
-    /// Flip the active layer and fit the canvas back to the screen.
-    @ViewBuilder
-    private var transformMenuContent: some View {
-        Menu("Transform") {
-            Button { vm.flipHorizontal() } label: {
-                Label("Flip Horizontal", systemImage: "arrow.left.and.right.righttriangle.left.righttriangle.right")
-            }
-            Button { vm.flipVertical() } label: {
-                Label("Flip Vertical", systemImage: "arrow.up.and.down.righttriangle.up.righttriangle.down")
-            }
-            Button { canvasHandle.resetZoom() } label: {
-                Label("Fit to Canvas", systemImage: "arrow.up.left.and.down.right.magnifyingglass")
             }
         }
     }
@@ -572,7 +628,7 @@ struct EditorView: View {
                     })
             if let dr = draftRect {
                 ShapeOutline(kind: vm.shapeKind)
-                    .stroke(vm.color, style: StrokeStyle(lineWidth: max(1, vm.width * scale),
+                    .stroke(vm.color, style: StrokeStyle(lineWidth: max(1, vm.shapeStrokeWidth * scale),
                                                          lineCap: .round, lineJoin: .round))
                     .frame(width: dr.width * scale, height: dr.height * scale)
                     .position(x: dr.midX * scale, y: dr.midY * scale)
@@ -634,8 +690,10 @@ struct EditorView: View {
                            isLocked: layer.isLocked || vm.toolMode == .fill || vm.toolMode == .shape
                                || vm.isStardustActive,
                            handle: canvasHandle,
-                           onSwipeUp: { vm.nextPage() },
-                           onSwipeDown: { vm.previousPage() })
+                           // Swiping up past the last page starts a new page.
+                           onSwipeUp: { vm.nextPageOrCreate() },
+                           onSwipeDown: { vm.previousPage() },
+                           onPencilAction: { vm.togglePencilEraser() })
                     .frame(width: displaySize.width, height: displaySize.height)
             }
             .opacity(layer.opacity)

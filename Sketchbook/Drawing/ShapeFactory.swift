@@ -255,6 +255,7 @@ enum ShapeFactory {
     private static func bandedFill(minY: CGFloat, maxY: CGFloat, gap: CGFloat, color: UIColor,
                                    spansAt: (CGFloat) -> [(CGFloat, CGFloat)]) -> [PKStroke] {
         let width = gap * 1.15
+        let capR = width / 2   // round-cap radius past each endpoint
         var strokes: [PKStroke] = []
         var active: [[CGPoint]] = []
 
@@ -263,6 +264,16 @@ enum ShapeFactory {
                 strokes.append(makeStroke(points: pts, color: color, width: width))
             }
             active = []
+        }
+
+        // PKStrokePath fits a spline through the points, which rounds the turn
+        // between rows and leaves alternating rows short of the edge (a visible
+        // comb pattern). Pin every row endpoint (repeat 3×) so corners stay
+        // square, and pull endpoints in by the cap radius so the round caps
+        // land exactly on the span edge.
+        func appendRow(_ i: Int, from a: CGFloat, to b: CGFloat, y: CGFloat) {
+            let p0 = CGPoint(x: a, y: y), p1 = CGPoint(x: b, y: y)
+            active[i].append(contentsOf: [p0, p0, p0, p1, p1, p1])
         }
 
         var leftToRight = true
@@ -274,12 +285,11 @@ enum ShapeFactory {
                 active = Array(repeating: [], count: rowSpans.count)
             }
             for (i, span) in rowSpans.enumerated() {
-                let (x0, x1) = span
-                if leftToRight {
-                    active[i].append(CGPoint(x: x0, y: y)); active[i].append(CGPoint(x: x1, y: y))
-                } else {
-                    active[i].append(CGPoint(x: x1, y: y)); active[i].append(CGPoint(x: x0, y: y))
-                }
+                var (x0, x1) = span
+                if x1 - x0 > width { x0 += capR; x1 -= capR }   // caps finish the ends
+                else { let mid = (x0 + x1) / 2; x0 = mid; x1 = mid }
+                if leftToRight { appendRow(i, from: x0, to: x1, y: y) }
+                else { appendRow(i, from: x1, to: x0, y: y) }
             }
             leftToRight.toggle()
             y += gap

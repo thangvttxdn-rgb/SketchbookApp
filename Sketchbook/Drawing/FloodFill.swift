@@ -24,16 +24,9 @@ enum FloodFill {
                                   bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
         ctx.draw(cg, in: CGRect(x: 0, y: 0, width: width, height: height))
 
-        func idx(_ x: Int, _ y: Int) -> Int { (y * width + x) * bytesPerPixel }
-        let seed = idx(sx, sy)
+        let seed = (sy * width + sx) * bytesPerPixel
         let target = (src[seed], src[seed + 1], src[seed + 2], src[seed + 3])
-
-        let tol = UInt16(tolerance * 255)
-        func matches(_ p: Int) -> Bool {
-            func d(_ a: UInt8, _ b: UInt8) -> UInt16 { a > b ? UInt16(a - b) : UInt16(b - a) }
-            return d(src[p], target.0) <= tol && d(src[p + 1], target.1) <= tol
-                && d(src[p + 2], target.2) <= tol && d(src[p + 3], target.3) <= tol
-        }
+        let tol = Int16(tolerance * 255)
 
         // Output buffer (transparent) we paint into.
         var out = [UInt8](repeating: 0, count: bytesPerRow * height)
@@ -41,20 +34,51 @@ enum FloodFill {
         fillColor.getRed(&fr, green: &fg, blue: &fb, alpha: &fa)
         let cr = UInt8(fr * 255), cg2 = UInt8(fg * 255), cb = UInt8(fb * 255), ca = UInt8(fa * 255)
 
+        // Scanline span fill over raw buffers: fills whole horizontal runs and
+        // pushes at most one seed per run above/below — orders of magnitude
+        // fewer stack operations and bounds checks than a per-pixel fill (the
+        // old version took seconds on a 2048×1536 canvas).
         var visited = [Bool](repeating: false, count: width * height)
-        var stack = [(Int, Int)]()
-        stack.append((sx, sy))
-
-        while let (x, y) = stack.popLast() {
-            if x < 0 || y < 0 || x >= width || y >= height { continue }
-            let cell = y * width + x
-            if visited[cell] { continue }
-            let p = idx(x, y)
-            if !matches(p) { continue }
-            visited[cell] = true
-            out[p] = cr; out[p + 1] = cg2; out[p + 2] = cb; out[p + 3] = ca
-            stack.append((x + 1, y)); stack.append((x - 1, y))
-            stack.append((x, y + 1)); stack.append((x, y - 1))
+        src.withUnsafeBufferPointer { sp in
+            out.withUnsafeMutableBufferPointer { op in
+                visited.withUnsafeMutableBufferPointer { vp in
+                    @inline(__always) func matches(_ x: Int, _ y: Int) -> Bool {
+                        let p = (y * width + x) * bytesPerPixel
+                        return abs(Int16(sp[p]) - Int16(target.0)) <= tol
+                            && abs(Int16(sp[p + 1]) - Int16(target.1)) <= tol
+                            && abs(Int16(sp[p + 2]) - Int16(target.2)) <= tol
+                            && abs(Int16(sp[p + 3]) - Int16(target.3)) <= tol
+                    }
+                    var stack: [(Int, Int)] = [(sx, sy)]
+                    stack.reserveCapacity(4096)
+                    while let (x, y) = stack.popLast() {
+                        if vp[y * width + x] || !matches(x, y) { continue }
+                        // Expand the run left and right.
+                        var lx = x
+                        while lx > 0, !vp[y * width + lx - 1], matches(lx - 1, y) { lx -= 1 }
+                        var rx = x
+                        while rx < width - 1, !vp[y * width + rx + 1], matches(rx + 1, y) { rx += 1 }
+                        // Paint + mark the run.
+                        for xi in lx...rx {
+                            vp[y * width + xi] = true
+                            let p = (y * width + xi) * bytesPerPixel
+                            op[p] = cr; op[p + 1] = cg2; op[p + 2] = cb; op[p + 3] = ca
+                        }
+                        // Seed one entry per matching run in the rows above/below.
+                        for ny in [y - 1, y + 1] where ny >= 0 && ny < height {
+                            var xi = lx
+                            while xi <= rx {
+                                if !vp[ny * width + xi], matches(xi, ny) {
+                                    stack.append((xi, ny))
+                                    while xi <= rx, matches(xi, ny) { xi += 1 }
+                                } else {
+                                    xi += 1
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         guard let outCtx = CGContext(data: &out, width: width, height: height, bitsPerComponent: 8,

@@ -26,6 +26,10 @@
     <string>$(CURRENT_PROJECT_VERSION)</string>
     <key>LSRequiresIPhoneOS</key>
     <true/>
+    <!-- Full screen (no Split View): required for the in-app orientation lock —
+         iPadOS ignores interface-orientation masks for resizable apps. -->
+    <key>UIRequiresFullScreen</key>
+    <true/>
     <key>UILaunchScreen</key>
     <dict>
         <key>UIColorName</key>

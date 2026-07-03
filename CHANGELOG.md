@@ -8,6 +8,12 @@
 - Six new shapes: Diamond, Star, Pentagon, Hexagon, Arrow and Heart.
 - New Stardust brush that sprinkles twinkling stars and dust as you drag.
 - Adjustable eraser size with a live size preview.
+- Pages sidebar on iPad: see every page as a thumbnail, drag to reorder, tap the trash to delete, tap to jump to a page.
+- Apple Pencil double-tap (or squeeze on Pencil Pro) toggles the eraser.
+- Orientation lock now works on iPad; the editor opens locked to landscape and you can unlock or re-lock from the menu.
+- Flick between pages with one finger in Pencil-only mode (two fingers any time); swiping up past the last page starts a new page.
+- Grid/template and transform controls promoted to the top toolbar.
+- Faster, cleaner colour fills, slimmer default shape outlines, and shape colour/fill updates apply live while placing a shape.
 
 ## [1.3]
 - Vector shapes: draw rectangles, circles, triangles and straight lines.

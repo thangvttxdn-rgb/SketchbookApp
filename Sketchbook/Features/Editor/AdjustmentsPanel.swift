@@ -5,10 +5,14 @@ import UIKit
 /// live preview of the active layer, then Apply (a single undoable step).
 struct AdjustmentsPanel: View {
     @ObservedObject var vm: EditorViewModel
+    /// True when docked in the iPad side panel (no Done button; Apply pops
+    /// back to the list instead of dismissing a sheet).
+    var embedded = false
     @Environment(\.dismiss) private var dismiss
+    @State private var path: [SketchAdjustment] = []
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             List {
                 section("Colour", SketchAdjustment.color)
                 section("Blur", SketchAdjustment.blur)
@@ -17,10 +21,14 @@ struct AdjustmentsPanel: View {
             .navigationTitle("Adjustments")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
+                if !embedded {
+                    ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
+                }
             }
             .navigationDestination(for: SketchAdjustment.self) { adj in
-                AdjustmentDetail(vm: vm, adjustment: adj) { dismiss() }
+                AdjustmentDetail(vm: vm, adjustment: adj) {
+                    if embedded { path.removeAll() } else { dismiss() }
+                }
             }
         }
     }

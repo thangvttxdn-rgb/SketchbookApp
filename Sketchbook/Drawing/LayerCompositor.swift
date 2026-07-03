@@ -40,6 +40,26 @@ enum LayerCompositor {
         }
     }
 
+    /// Small composite of ONE page (for the pages sidebar thumbnails).
+    static func renderPage(_ page: Page, canvasSize: CGSize, backgroundHex: String,
+                           maxDimension: CGFloat = 140) -> UIImage {
+        let ratio = min(maxDimension / canvasSize.width, maxDimension / canvasSize.height, 1)
+        let target = CGSize(width: max(canvasSize.width * ratio, 1),
+                            height: max(canvasSize.height * ratio, 1))
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 2   // crisp on retina at thumbnail size
+        return UIGraphicsImageRenderer(size: target, format: format).image { ctx in
+            let rect = CGRect(origin: .zero, size: target)
+            UIColor(hex: backgroundHex).setFill()
+            ctx.cgContext.fill(rect)
+            for layer in page.layers where layer.isVisible && !layer.isReference {
+                layer.image?.draw(in: rect, blendMode: .normal, alpha: layer.opacity)
+                layer.drawing.image(from: CGRect(origin: .zero, size: canvasSize), scale: ratio)
+                    .draw(in: rect, blendMode: .normal, alpha: layer.opacity)
+            }
+        }
+    }
+
     static func thumbnail(_ document: SketchDocument, maxDimension: CGFloat = 600) -> UIImage {
         let full = composite(document, includeReference: false, scale: 1)
         let size = document.canvasSize

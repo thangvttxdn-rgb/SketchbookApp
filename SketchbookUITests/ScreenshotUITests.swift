@@ -10,6 +10,7 @@ final class ScreenshotUITests: XCTestCase {
     func testCaptureScreens() {
         let app = XCUIApplication()
         app.launchEnvironment["SKETCH_SEED"] = "1"
+        app.launchEnvironment["UITEST_DISABLE_ORIENTATION_LOCK"] = "1"
         app.launch()
 
         // 1 — Gallery with sample sketches.
@@ -38,6 +39,7 @@ final class ScreenshotUITests: XCTestCase {
     /// Validates that finger drawing works, and still works while zoomed.
     func testDrawingWorks() {
         let app = XCUIApplication()
+        app.launchEnvironment["UITEST_DISABLE_ORIENTATION_LOCK"] = "1"
         app.launch()
 
         // New blank sketch.
@@ -67,6 +69,7 @@ final class ScreenshotUITests: XCTestCase {
     /// return to page 1 and confirm its drawing persisted.
     func testMultiPage() {
         let app = XCUIApplication()
+        app.launchEnvironment["UITEST_DISABLE_ORIENTATION_LOCK"] = "1"
         app.launch()
         let newButton = app.buttons["New Sketch"].firstMatch
         if newButton.waitForExistence(timeout: 8) { newButton.tap() } else { app.buttons["New"].firstMatch.tap() }

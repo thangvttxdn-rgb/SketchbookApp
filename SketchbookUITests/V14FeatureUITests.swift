@@ -8,6 +8,9 @@ final class V14FeatureUITests: XCTestCase {
     override func setUp() { continueAfterFailure = false }
 
     private func newSketch(_ app: XCUIApplication) {
+        // The editor auto-locks to landscape on iPad, which desyncs XCUITest's
+        // coordinate space from the rendered UI — disable it for these tests.
+        app.launchEnvironment["UITEST_DISABLE_ORIENTATION_LOCK"] = "1"
         app.launch()
         let newButton = app.buttons["New Sketch"].firstMatch
         if newButton.waitForExistence(timeout: 8) { newButton.tap() }
@@ -31,6 +34,7 @@ final class V14FeatureUITests: XCTestCase {
         let star = app.buttons["Star"].firstMatch
         XCTAssertTrue(star.waitForExistence(timeout: 5))
         star.tap()
+        dismissPickerIfSheet(app)
         sleep(1)
 
         // Drag the star out on the canvas, then confirm with the check button.
@@ -50,6 +54,42 @@ final class V14FeatureUITests: XCTestCase {
         sleep(1)
         XCTAssertTrue(undo.isEnabled)
         snapshot("v14-02-star-filled")
+    }
+
+    /// Regression (reported on device): toggling "Fill shape" AFTER dragging a
+    /// shape out must fill the live pending shape, not silently do nothing.
+    func testFillToggleUpdatesPendingShape() {
+        let app = XCUIApplication()
+        newSketch(app)
+
+        app.buttons["Shapes"].firstMatch.tap()
+        let rect = app.buttons["Rectangle"].firstMatch
+        XCTAssertTrue(rect.waitForExistence(timeout: 5))
+        rect.tap()
+        dismissPickerIfSheet(app)
+        sleep(1)
+
+        // Drag the rectangle out — handles appear, fill still off.
+        let a = app.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.4))
+        let b = app.coordinate(withNormalizedOffset: CGVector(dx: 0.45, dy: 0.55))
+        a.press(forDuration: 0.1, thenDragTo: b, withVelocity: 200, thenHoldForDuration: 0.1)
+        let add = app.buttons["Add"].firstMatch
+        XCTAssertTrue(add.waitForExistence(timeout: 5))
+
+        // NOW toggle fill — the pending shape must pick it up live.
+        // (Reopen the picker: on a collapsed-panel layout it lives in a sheet.)
+        app.buttons["Shapes"].firstMatch.tap()
+        let fill = app.switches["Fill shape"].firstMatch
+        XCTAssertTrue(fill.waitForExistence(timeout: 5))
+        fill.tap()
+        sleep(1)
+        dismissPickerIfSheet(app)
+        snapshot("v14-09-pending-fill-toggled")
+
+        add.tap()
+        sleep(1)
+        XCTAssertTrue(app.buttons["Undo"].firstMatch.isEnabled)
+        snapshot("v14-10-filled-shape-committed")
     }
 
     /// Flood-fill the empty canvas, then verify Undo reverts it.
@@ -109,6 +149,7 @@ final class V14FeatureUITests: XCTestCase {
         let stardust = app.buttons["Stardust"].firstMatch
         XCTAssertTrue(stardust.waitForExistence(timeout: 5))
         stardust.tap()
+        dismissPickerIfSheet(app)
         sleep(1)
 
         let a = app.coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: 0.42))
@@ -131,6 +172,39 @@ final class V14FeatureUITests: XCTestCase {
         XCTAssertTrue(slider.waitForExistence(timeout: 5), "eraser size slider should appear")
         slider.adjust(toNormalizedSliderPosition: 0.8)
         snapshot("v14-08-eraser-size")
+    }
+
+    /// iPad pages sidebar: manual expand, add a page, delete it again.
+    func testPagesSidebar() {
+        let app = XCUIApplication()
+        newSketch(app)
+        let show = app.buttons["Show pages"].firstMatch
+        guard show.waitForExistence(timeout: 5) else { return }   // compact width: no sidebar
+        show.tap()
+        sleep(1)
+        snapshot("v14-11-pages-sidebar")
+
+        let addPage = app.buttons["Add page"].firstMatch
+        XCTAssertTrue(addPage.waitForExistence(timeout: 5))
+        addPage.tap()
+        sleep(1)
+        XCTAssertTrue(app.staticTexts["pageIndicator"].label.contains("2 / 2"))
+
+        let del = app.buttons["Delete page 2"].firstMatch
+        XCTAssertTrue(del.waitForExistence(timeout: 5))
+        del.tap()
+        sleep(1)
+        XCTAssertTrue(app.staticTexts["pageIndicator"].label.contains("1 / 1"))
+        snapshot("v14-12-page-deleted")
+
+        app.buttons["Hide pages"].firstMatch.tap()
+    }
+
+    /// Pickers open as sheets when the side panel is collapsed (the default) —
+    /// dismiss so the canvas is tappable again.
+    private func dismissPickerIfSheet(_ app: XCUIApplication) {
+        let done = app.buttons["Done"].firstMatch
+        if done.waitForExistence(timeout: 2) { done.tap() }
     }
 
     private func snapshot(_ name: String) {
