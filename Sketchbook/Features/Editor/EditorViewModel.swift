@@ -71,11 +71,19 @@ final class EditorViewModel: ObservableObject {
     var canRedo: Bool { !redoStack.isEmpty }
 
     /// Record the current document state so the next mutation can be undone.
-    /// Call BEFORE applying a change.
+    /// Call BEFORE applying a change. Also drops the thumbnail caches touched
+    /// by the impending change and schedules a debounced autosave.
     private func snapshot() {
         undoStack.append(document)
         if undoStack.count > maxUndoSteps { undoStack.removeFirst() }
         redoStack.removeAll()
+        if document.pages.indices.contains(document.currentPageIndex) {
+            pageThumbCache.removeValue(forKey: document.pages[document.currentPageIndex].id)
+        }
+        if document.layers.indices.contains(activeIndex) {
+            layerThumbCache.removeValue(forKey: document.layers[activeIndex].id)
+        }
+        scheduleAutosave()
     }
 
     func undo() {
@@ -84,6 +92,8 @@ final class EditorViewModel: ObservableObject {
         document = prev
         invalidateLayerImage(nil)
         pageThumbCache.removeAll()
+        layerThumbCache.removeAll()
+        scheduleAutosave()
         Haptics.select()
     }
 
@@ -93,7 +103,24 @@ final class EditorViewModel: ObservableObject {
         document = next
         invalidateLayerImage(nil)
         pageThumbCache.removeAll()
+        layerThumbCache.removeAll()
+        scheduleAutosave()
         Haptics.select()
+    }
+
+    // MARK: - Autosave (debounced)
+
+    /// Persist a few seconds after the last change so force-quitting or a
+    /// crash never loses more than a moment of work.
+    private var autosaveTask: Task<Void, Never>?
+
+    private func scheduleAutosave() {
+        autosaveTask?.cancel()
+        autosaveTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            guard !Task.isCancelled else { return }
+            self?.save()
+        }
     }
 
     func templateImage(size: CGSize) -> UIImage {
@@ -124,9 +151,16 @@ final class EditorViewModel: ObservableObject {
            let b = BrushType(rawValue: raw) {
             self.brush = b
         }
-        // Finger drawing on by default so drawing works out of the box (with or
-        // without an Apple Pencil); users can switch to Pencil-only in Settings.
-        let fingerDrawing = defaults.object(forKey: SettingsKey.fingerDrawing) as? Bool ?? true
+        // Finger drawing default: OFF on iPad (Pencil draws; fingers pan/zoom,
+        // two-finger tap undoes — the notepad/GoodNotes model), ON on iPhone
+        // (no Apple Pencil support, so fingers must draw). Toggle any time via
+        // ••• → Finger Drawing or Settings.
+        let fingerDefault = UIDevice.current.userInterfaceIdiom != .pad
+        // bool(forKey:) (not `as? Bool`) so the "-fingerDrawing YES" launch
+        // argument used by the UI tests coerces correctly.
+        let fingerDrawing = defaults.object(forKey: SettingsKey.fingerDrawing) != nil
+            ? defaults.bool(forKey: SettingsKey.fingerDrawing)
+            : fingerDefault
         self.pencilOnly = !fingerDrawing
         if let e = defaults.object(forKey: SettingsKey.defaultEraseSize) as? Double, e > 0 {
             self.eraseWidth = CGFloat(e)
@@ -404,16 +438,30 @@ final class EditorViewModel: ObservableObject {
     // MARK: - Pages sidebar (thumbnails, reorder, delete)
 
     private var pageThumbCache: [UUID: UIImage] = [:]
+    private var layerThumbCache: [UUID: UIImage] = [:]
 
-    /// Thumbnail for the pages sidebar. Cached per page; the current page's
-    /// cache entry is dropped on every undoable change (see `snapshot`).
+    /// Thumbnail for the pages sidebar. Cached per page (current page included —
+    /// its entry is dropped on every undoable change, see `snapshot`), so the
+    /// sidebar never re-renders a full page composite per view update.
     func pageThumbnail(_ index: Int) -> UIImage {
         guard document.pages.indices.contains(index) else { return UIImage() }
         let page = document.pages[index]
-        if index != document.currentPageIndex, let cached = pageThumbCache[page.id] { return cached }
+        if let cached = pageThumbCache[page.id] { return cached }
         let img = LayerCompositor.renderPage(page, canvasSize: document.canvasSize,
                                              backgroundHex: document.backgroundHex)
         pageThumbCache[page.id] = img
+        return img
+    }
+
+    /// Small preview of one layer for the layers panel (Procreate-style).
+    /// Cached per layer; the active layer's entry is dropped on each change.
+    func layerThumbnail(_ index: Int) -> UIImage {
+        guard document.layers.indices.contains(index) else { return UIImage() }
+        let layer = document.layers[index]
+        if let cached = layerThumbCache[layer.id] { return cached }
+        let img = LayerCompositor.renderLayerThumb(layer, canvasSize: document.canvasSize,
+                                                   backgroundHex: document.backgroundHex)
+        layerThumbCache[layer.id] = img
         return img
     }
 

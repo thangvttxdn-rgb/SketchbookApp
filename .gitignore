@@ -44,3 +44,4 @@ shots/
 __pycache__/
 *.pyc
 build-sim/
+scratchpad_shots/

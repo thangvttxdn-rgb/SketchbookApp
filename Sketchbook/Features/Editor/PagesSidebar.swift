@@ -16,8 +16,11 @@ struct PagesSidebar: View {
             header
             Divider()
             ScrollView {
+                // Identity by page id (NOT index): with index identity, a
+                // reorder/delete makes SwiftUI reuse rows for different pages,
+                // glitching thumbnails and killing in-flight drags.
                 LazyVStack(spacing: 14) {
-                    ForEach(0..<vm.pageCount, id: \.self) { index in
+                    ForEach(Array(vm.document.pages.enumerated()), id: \.element.id) { index, _ in
                         pageCell(index)
                     }
                 }

@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.5]
+- Major stability fix: all layers now zoom and pan together — strokes always land exactly where you draw them, on every layer, at every zoom level.
+- One persistent drawing canvas across layer and page switches: switching layers no longer resets the zoom or drops in-flight strokes onto the wrong layer.
+- Procreate-style quick gestures: two-finger tap to undo, three-finger tap to redo.
+- New page-flip gesture: drag firmly past the bottom edge of the page for the next page (creates one past the last), past the top edge for the previous page.
+- Finger drawing is now off by default on iPad (Apple Pencil draws; fingers pan, zoom and undo) with a new one-tap toolbar toggle; on iPhone fingers still draw by default.
+- Palm rejection while drawing: a resting palm can no longer pan or zoom the page mid-stroke.
+- Layers panel: live thumbnail previews per layer (Procreate-style) and a per-layer opacity control.
+- Pages sidebar: reliable thumbnails and smooth drag-to-reorder (stable page identity).
+- Pickers and Adjustments open in the right side panel on iPad (auto-expanding) instead of a pop-up sheet over the canvas.
+- Fixed layer opacity being applied twice to non-active layers.
+- Autosave: your work is saved a few seconds after every change and when the app goes to the background.
+
 ## [1.4]
 - Insert a Photo or Insert a File: add images from your photo library or the Files app as artwork layers (Procreate-style Add), alongside the existing tracing-reference import.
 - The fill tool now fills vector shapes: tap inside a placed shape to give it a crisp vector fill in the current colour — tap again with a new colour to replace it.

@@ -21,6 +21,10 @@ final class CanvasHandle: ObservableObject {
 /// - Apple Pencil + palm rejection are handled by PencilKit; `pencilOnly`
 ///   switches the drawing policy so a resting palm (or any finger) is ignored.
 /// - Live symmetry mirroring is applied on stroke commit via the coordinator.
+/// - The canvas is the ONE zoomable scroll view; its live zoom/offset is
+///   reported up via `onViewportChange` so the surrounding SwiftUI layer
+///   images can be transformed to match (otherwise only the active layer's
+///   ink zooms and strokes appear "in the wrong place" next to other layers).
 struct CanvasView: UIViewRepresentable {
     @Binding var drawing: PKDrawing
     var tool: PKTool
@@ -30,12 +34,21 @@ struct CanvasView: UIViewRepresentable {
     var canvasSize: CGSize
     var isLocked: Bool
     var handle: CanvasHandle?
-    /// Forceful two-finger swipes used to flip / create pages.
-    var onSwipeUp: (() -> Void)?
-    var onSwipeDown: (() -> Void)?
+    /// GoodNotes-style page pull: dragging firmly past the bottom edge (and
+    /// releasing) flips to the next page / creates one; past the top edge goes
+    /// to the previous page. Only fires at the fit (unzoomed) scale.
+    var onPullNext: (() -> Void)?
+    var onPullPrevious: (() -> Void)?
+    /// Procreate-style quick gestures: two-finger tap = undo, three-finger
+    /// tap = redo.
+    var onTwoFingerTap: (() -> Void)?
+    var onThreeFingerTap: (() -> Void)?
     /// Apple Pencil double-tap (2nd gen) / squeeze (Pencil Pro) — used to
     /// toggle between the current tool and the eraser.
     var onPencilAction: (() -> Void)?
+    /// Reports the live zoom scale + content offset so sibling layers render
+    /// in register with the canvas content.
+    var onViewportChange: ((CGFloat, CGPoint) -> Void)?
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -48,34 +61,32 @@ struct CanvasView: UIViewRepresentable {
         pencil.delegate = context.coordinator
         canvas.addInteraction(pencil)
 
-        // Flick up/down → page navigation. Two-finger swipes always work (they
-        // don't collide with drawing); single-finger swipes are honoured only
-        // in Pencil-only mode, where fingers don't draw (see handleSwipe).
-        for touches in [1, 2] {
-            for direction in [UISwipeGestureRecognizer.Direction.up, .down] {
-                let swipe = UISwipeGestureRecognizer(target: context.coordinator,
-                                                     action: #selector(Coordinator.handleSwipe(_:)))
-                swipe.direction = direction
-                swipe.numberOfTouchesRequired = touches
-                swipe.delegate = context.coordinator
-                canvas.addGestureRecognizer(swipe)
-                // With finger drawing ON, PencilKit's drawing recognizer would
-                // otherwise swallow two-finger flicks — make it wait for the
-                // swipe to fail (fails within a few ms for normal strokes).
-                if touches == 2 {
-                    canvas.drawingGestureRecognizer.require(toFail: swipe)
-                }
-            }
+        // Two-finger tap → undo, three-finger tap → redo (fingers only; the
+        // Pencil never triggers these).
+        for (touches, action) in [(2, #selector(Coordinator.handleTwoFingerTap(_:))),
+                                  (3, #selector(Coordinator.handleThreeFingerTap(_:)))] {
+            let tap = UITapGestureRecognizer(target: context.coordinator, action: action)
+            tap.numberOfTouchesRequired = touches
+            tap.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
+            tap.delegate = context.coordinator
+            canvas.addGestureRecognizer(tap)
         }
+
         canvas.drawing = drawing
+        context.coordinator.lastPushedUp = drawing
         canvas.backgroundColor = .clear
         canvas.isOpaque = false
-        canvas.alwaysBounceVertical = false
+        // Vertical bounce enables the pull-past-the-edge page gesture.
+        canvas.alwaysBounceVertical = true
         canvas.alwaysBounceHorizontal = false
         canvas.bouncesZoom = false
         canvas.showsVerticalScrollIndicator = false
         canvas.showsHorizontalScrollIndicator = false
+        // No automatic safe-area insets: the sibling layer images are aligned
+        // to the reported contentOffset, which must stay in pure content space.
+        canvas.contentInsetAdjustmentBehavior = .never
         canvas.contentSize = canvasSize
+        context.coordinator.lastContentSize = canvasSize
         applyConfig(canvas)
         return canvas
     }
@@ -83,17 +94,10 @@ struct CanvasView: UIViewRepresentable {
     func updateUIView(_ canvas: PKCanvasView, context: Context) {
         context.coordinator.parent = self
         // Only push the binding INTO the canvas when the change came from outside
-        // (page switch, clear, filter, undo) — never when it's the value the
-        // canvas itself just reported up. On iPad the docked side panel observes
-        // the view model, so every stroke segment triggers a re-render → another
-        // updateUIView mid-stroke; blindly assigning `canvas.drawing = drawing`
-        // there rewinds the canvas to the lagging binding value and erases the
-        // stroke in progress (the "can't draw with the panel open" bug).
+        // (page/layer switch, clear, filter, undo) — never when it's the value the
+        // canvas itself just reported up, and NEVER while a stroke is in progress
+        // (that cancels the live stroke — the "can't draw with the panel open" bug).
         let coord = context.coordinator
-        // NEVER touch the canvas's drawing while a stroke is in progress — doing
-        // so cancels the live stroke (the device-only "can't draw with the panel
-        // open" bug). Only push a drawing IN when it's a genuine external change
-        // (page switch, clear, filter, undo) and not the value we just sent up.
         if !coord.isDrawing,
            canvas.drawing != drawing,
            drawing != coord.lastPushedUp,
@@ -108,21 +112,30 @@ struct CanvasView: UIViewRepresentable {
         // Fit the fixed-size drawing canvas into the on-screen frame using
         // PencilKit's own zoom (NOT a SwiftUI .scaleEffect, which breaks Pencil
         // touch handling). Drawing stays in canvasSize coordinates.
-        canvas.contentSize = canvasSize
+        //
+        // contentSize is only (re)assigned when the underlying canvas size
+        // actually changes: UIScrollView scales contentSize with the zoom, so
+        // blindly resetting it every update while the user is zoomed in
+        // clips/jumps the viewport (the "zoom keeps snapping" bug).
+        if coord.lastContentSize != canvasSize {
+            canvas.contentSize = canvasSize
+            coord.lastContentSize = canvasSize
+            coord.didInitialZoom = false
+        }
         let bounds = canvas.bounds.size
         if bounds.width > 0, bounds.height > 0 {
             let fit = min(bounds.width / canvasSize.width, bounds.height / canvasSize.height)
             if fit > 0, fit.isFinite {
                 // Pinch-to-zoom is handled by PencilKit's own scroll-view zoom
-                // (1×–5× of the fit scale) — NOT a SwiftUI .scaleEffect, which
-                // breaks Pencil/touch input. `fit` is the zoomed-out baseline.
+                // (1×–5× of the fit scale). `fit` is the zoomed-out baseline.
                 canvas.minimumZoomScale = fit
                 canvas.maximumZoomScale = fit * 5
                 // Snap to fit only on first layout / when the user is zoomed out
                 // past the new baseline; never fight an active user zoom.
-                if !context.coordinator.didInitialZoom || canvas.zoomScale < fit {
+                if !coord.didInitialZoom || canvas.zoomScale < fit {
                     canvas.zoomScale = fit
-                    context.coordinator.didInitialZoom = true
+                    coord.didInitialZoom = true
+                    coord.reportViewport(canvas)
                 }
             }
         }
@@ -144,6 +157,8 @@ struct CanvasView: UIViewRepresentable {
         var parent: CanvasView
         var isApplyingSymmetry = false
         var didInitialZoom = false
+        /// Last canvasSize pushed to `contentSize` (see updateUIView).
+        var lastContentSize: CGSize = .zero
         /// True between tool-down and tool-up. While true, `updateUIView` must not
         /// reassign `canvas.drawing`, or the active stroke is cancelled.
         var isDrawing = false
@@ -155,6 +170,11 @@ struct CanvasView: UIViewRepresentable {
         /// `updateUIView` doesn't overwrite a stroke in progress.
         var lastPushedUp: PKDrawing?
         private var lastStrokeCount = 0
+        /// Re-enables scrolling shortly after the tool lifts so a resting palm
+        /// can't pan the canvas in the gaps between strokes.
+        private var scrollReEnableWork: DispatchWorkItem?
+        /// One page flip per drag gesture.
+        private var pullFired = false
 
         init(_ parent: CanvasView) {
             self.parent = parent
@@ -163,18 +183,19 @@ struct CanvasView: UIViewRepresentable {
 
         func syncStrokeCount(_ count: Int) { lastStrokeCount = count }
 
-        @objc func handleSwipe(_ gr: UISwipeGestureRecognizer) {
-            // A single-finger flick is a drawing gesture when finger drawing is
-            // on — only treat it as a page swipe in Pencil-only mode.
-            if gr.numberOfTouchesRequired == 1 && !parent.pencilOnly { return }
-            switch gr.direction {
-            case .up: parent.onSwipeUp?()
-            case .down: parent.onSwipeDown?()
-            default: break
-            }
+        // MARK: Quick gestures
+
+        @objc func handleTwoFingerTap(_ gr: UITapGestureRecognizer) {
+            guard gr.state == .ended, !isDrawing else { return }
+            parent.onTwoFingerTap?()
         }
 
-        // Allow the page-swipe to coexist with PencilKit's own gestures.
+        @objc func handleThreeFingerTap(_ gr: UITapGestureRecognizer) {
+            guard gr.state == .ended, !isDrawing else { return }
+            parent.onThreeFingerTap?()
+        }
+
+        // Allow our taps to coexist with PencilKit's own gestures.
         func gestureRecognizer(_ g: UIGestureRecognizer,
                                shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
 
@@ -196,13 +217,69 @@ struct CanvasView: UIViewRepresentable {
             if squeeze.phase == .ended { parent.onPencilAction?() }
         }
 
+        // MARK: Viewport reporting (zoom + scroll → SwiftUI layer images)
+
+        func reportViewport(_ scrollView: UIScrollView) {
+            let zoom = scrollView.zoomScale
+            let offset = scrollView.contentOffset
+            let change = parent.onViewportChange
+            // Defer: these fire during layout/updateUIView, and publishing
+            // SwiftUI state mid-update is undefined behavior.
+            DispatchQueue.main.async { change?(zoom, offset) }
+        }
+
+        func scrollViewDidZoom(_ scrollView: UIScrollView) { reportViewport(scrollView) }
+        func scrollViewDidScroll(_ scrollView: UIScrollView) { reportViewport(scrollView) }
+
+        // MARK: Pull past the edge → flip / create page
+
+        /// The drag must travel well past the edge (against the rubber-band)
+        /// before release; a casual scroll or flick never reaches this.
+        private let pullThreshold: CGFloat = 110
+
+        func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+            pullFired = false
+        }
+
+        func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+            // Page pulls only at the fit scale — while zoomed in, panning past an
+            // edge is navigation within the page, never a page flip.
+            guard !pullFired, !isDrawing,
+                  scrollView.zoomScale <= scrollView.minimumZoomScale * 1.02 else { return }
+            let bottomOverscroll = scrollView.contentOffset.y + scrollView.bounds.height
+                - max(scrollView.contentSize.height, scrollView.bounds.height)
+            let topOverscroll = -(scrollView.contentOffset.y + scrollView.contentInset.top)
+            if bottomOverscroll > pullThreshold {
+                pullFired = true
+                parent.onPullNext?()
+            } else if topOverscroll > pullThreshold {
+                pullFired = true
+                parent.onPullPrevious?()
+            }
+        }
+
+        // MARK: Drawing lifecycle
+
         func canvasViewDidBeginUsingTool(_ canvasView: PKCanvasView) {
             isDrawing = true
+            // Palm rejection for the scroll view: while the tool is down a
+            // resting palm must not pan/zoom the page.
+            scrollReEnableWork?.cancel()
+            canvasView.isScrollEnabled = false
         }
 
         func canvasViewDidEndUsingTool(_ canvasView: PKCanvasView) {
             isDrawing = false
             commit(canvasView)
+            // Wait a short grace period before re-enabling scroll: between
+            // strokes the pencil lifts for a fraction of a second while the palm
+            // still rests on the glass.
+            scrollReEnableWork?.cancel()
+            let work = DispatchWorkItem { [weak canvasView] in
+                canvasView?.isScrollEnabled = true
+            }
+            scrollReEnableWork = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6, execute: work)
         }
 
         func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {

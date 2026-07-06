@@ -11,6 +11,10 @@ final class V14FeatureUITests: XCTestCase {
         // The editor auto-locks to landscape on iPad, which desyncs XCUITest's
         // coordinate space from the rendered UI — disable it for these tests.
         app.launchEnvironment["UITEST_DISABLE_ORIENTATION_LOCK"] = "1"
+        // Tests drive the canvas with synthetic finger touches; the iPad default
+        // is now Pencil-only, so explicitly enable finger drawing (UserDefaults
+        // reads -key value launch arguments as overrides).
+        app.launchArguments += ["-fingerDrawing", "YES"]
         app.launch()
         let newButton = app.buttons["New Sketch"].firstMatch
         if newButton.waitForExistence(timeout: 8) { newButton.tap() }

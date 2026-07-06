@@ -4,14 +4,17 @@ import PencilKit
 /// Flattens layers into a single image — used for the gallery thumbnail, PNG
 /// export, the flood-fill snapshot and the AR texture.
 enum LayerCompositor {
-    /// Render one layer (its image then its strokes) at the given size.
+    /// Render one layer (its image then its strokes) at the given size, at
+    /// FULL alpha: every caller applies `layer.opacity` exactly once itself
+    /// (the editor via `.opacity()`, adjustments/filters by keeping the layer's
+    /// opacity property). Baking it in here as well applied it twice.
     static func renderLayer(_ layer: Layer, size: CGSize, scale: CGFloat = 1) -> UIImage {
         let renderer = UIGraphicsImageRenderer(size: size, format: format(scale: scale))
         return renderer.image { _ in
             let rect = CGRect(origin: .zero, size: size)
-            layer.image?.draw(in: rect, blendMode: .normal, alpha: layer.opacity)
+            layer.image?.draw(in: rect, blendMode: .normal, alpha: 1)
             let strokeImage = layer.drawing.image(from: rect, scale: scale)
-            strokeImage.draw(in: rect, blendMode: .normal, alpha: layer.opacity)
+            strokeImage.draw(in: rect, blendMode: .normal, alpha: 1)
         }
     }
 
@@ -61,6 +64,31 @@ enum LayerCompositor {
                     layer.drawing.image(from: CGRect(origin: .zero, size: canvasSize), scale: ratio)
                         .draw(in: rect, blendMode: .normal, alpha: layer.opacity)
                 }
+            }
+        }
+        return result
+    }
+
+    /// Small preview of ONE layer (for the layers panel). Transparent areas
+    /// show the paper colour so ink reads naturally at thumbnail size.
+    static func renderLayerThumb(_ layer: Layer, canvasSize: CGSize, backgroundHex: String,
+                                 maxDimension: CGFloat = 96) -> UIImage {
+        let ratio = min(maxDimension / canvasSize.width, maxDimension / canvasSize.height, 1)
+        let target = CGSize(width: max(canvasSize.width * ratio, 1),
+                            height: max(canvasSize.height * ratio, 1))
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 2   // crisp on retina at thumbnail size
+        var result = UIImage()
+        // Light traits: in Dark Mode PencilKit inverts ink colours (black →
+        // white), which blanks the thumbnail on its light paper.
+        UITraitCollection(userInterfaceStyle: .light).performAsCurrent {
+            result = UIGraphicsImageRenderer(size: target, format: format).image { ctx in
+                let rect = CGRect(origin: .zero, size: target)
+                UIColor(hex: backgroundHex).setFill()
+                ctx.cgContext.fill(rect)
+                layer.image?.draw(in: rect, blendMode: .normal, alpha: layer.opacity)
+                layer.drawing.image(from: CGRect(origin: .zero, size: canvasSize), scale: ratio)
+                    .draw(in: rect, blendMode: .normal, alpha: layer.opacity)
             }
         }
         return result

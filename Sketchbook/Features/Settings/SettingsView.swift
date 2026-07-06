@@ -8,7 +8,7 @@ enum SettingsKey {
     static let defaultBrush = "defaultBrush"
     static let defaultPencilGrade = "defaultPencilGrade"
     static let defaultEraseSize = "defaultEraseSize"
-    static let fingerDrawing = "fingerDrawing"   // default false → Pencil only
+    static let fingerDrawing = "fingerDrawing"   // default: off on iPad (Pencil only), on for iPhone
     static let haptics = "haptics"               // default true
     static let theme = "theme"                   // light | dark | system (default light)
 }
@@ -31,7 +31,10 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
 
     @AppStorage(SettingsKey.theme) private var theme = AppTheme.light.rawValue
-    @AppStorage(SettingsKey.fingerDrawing) private var fingerDrawing = true
+    // Default OFF on iPad (Pencil draws, fingers pan/zoom/undo); ON on iPhone
+    // (no Apple Pencil support). Mirrors EditorViewModel.init.
+    @AppStorage(SettingsKey.fingerDrawing) private var fingerDrawing =
+        UIDevice.current.userInterfaceIdiom != .pad
     @AppStorage(SettingsKey.haptics) private var haptics = true
     @AppStorage(SettingsKey.defaultTemplate) private var defaultTemplate = TemplateKind.blank.rawValue
     @AppStorage(SettingsKey.defaultLandscape) private var defaultLandscape = true

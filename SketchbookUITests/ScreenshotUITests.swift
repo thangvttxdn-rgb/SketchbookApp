@@ -11,6 +11,10 @@ final class ScreenshotUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchEnvironment["SKETCH_SEED"] = "1"
         app.launchEnvironment["UITEST_DISABLE_ORIENTATION_LOCK"] = "1"
+        // Tests drive the canvas with synthetic finger touches; the iPad default
+        // is now Pencil-only, so explicitly enable finger drawing (UserDefaults
+        // reads -key value launch arguments as overrides).
+        app.launchArguments += ["-fingerDrawing", "YES"]
         app.launch()
 
         // 1 — Gallery with sample sketches.
@@ -40,6 +44,10 @@ final class ScreenshotUITests: XCTestCase {
     func testDrawingWorks() {
         let app = XCUIApplication()
         app.launchEnvironment["UITEST_DISABLE_ORIENTATION_LOCK"] = "1"
+        // Tests drive the canvas with synthetic finger touches; the iPad default
+        // is now Pencil-only, so explicitly enable finger drawing (UserDefaults
+        // reads -key value launch arguments as overrides).
+        app.launchArguments += ["-fingerDrawing", "YES"]
         app.launch()
 
         // New blank sketch.
@@ -70,6 +78,10 @@ final class ScreenshotUITests: XCTestCase {
     func testMultiPage() {
         let app = XCUIApplication()
         app.launchEnvironment["UITEST_DISABLE_ORIENTATION_LOCK"] = "1"
+        // Tests drive the canvas with synthetic finger touches; the iPad default
+        // is now Pencil-only, so explicitly enable finger drawing (UserDefaults
+        // reads -key value launch arguments as overrides).
+        app.launchArguments += ["-fingerDrawing", "YES"]
         app.launch()
         let newButton = app.buttons["New Sketch"].firstMatch
         if newButton.waitForExistence(timeout: 8) { newButton.tap() } else { app.buttons["New"].firstMatch.tap() }

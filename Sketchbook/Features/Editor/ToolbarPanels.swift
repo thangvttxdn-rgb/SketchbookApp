@@ -246,6 +246,17 @@ struct LayerRow: View {
             }
             .buttonStyle(.plain)
 
+            // Procreate-style content preview.
+            Image(uiImage: vm.layerThumbnail(index))
+                .resizable()
+                .scaledToFit()
+                .frame(width: 44, height: 34)
+                .background(Color.white)
+                .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .stroke(Theme.ink.opacity(0.15), lineWidth: 0.5))
+                .opacity(layer.isVisible ? 1 : 0.35)
+
             // Plain text (NOT a TextField): tapping a row must select the
             // layer, never focus a text editor / pop the keyboard. Renaming
             // lives behind the row menu.
@@ -279,6 +290,18 @@ struct LayerRow: View {
                 }
                 Button { vm.document.layers[index].isLocked.toggle() } label: {
                     Label(layer.isLocked ? "Unlock" : "Lock", systemImage: layer.isLocked ? "lock.open" : "lock")
+                }
+                Menu {
+                    ForEach([1.0, 0.75, 0.5, 0.25], id: \.self) { value in
+                        Button {
+                            vm.document.layers[index].opacity = value
+                        } label: {
+                            Label("\(Int(value * 100))%",
+                                  systemImage: abs(layer.opacity - value) < 0.01 ? "checkmark" : "circle.lefthalf.filled")
+                        }
+                    }
+                } label: {
+                    Label("Opacity", systemImage: "circle.lefthalf.filled")
                 }
                 Button(role: .destructive) { vm.deleteLayer(at: index) } label: {
                     Label("Delete Layer", systemImage: "trash")

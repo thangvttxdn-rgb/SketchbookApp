@@ -25,6 +25,13 @@ struct EditorView: View {
     @StateObject private var canvasHandle = CanvasHandle()
     @ObservedObject private var orientation = OrientationManager.shared
     @Environment(\.horizontalSizeClass) private var hSize
+    @Environment(\.scenePhase) private var scenePhase
+
+    // Live canvas viewport (pinch zoom + pan), reported by the PKCanvasView so
+    // every other layer/template image renders in register with the ink.
+    // 0 = not yet reported → fit scale, zero offset.
+    @State private var canvasZoom: CGFloat = 0
+    @State private var canvasOffset: CGPoint = .zero
 
     // iPad side panel state — both panels start collapsed; the user expands
     // and collapses them manually via the edge affordances.
@@ -87,6 +94,9 @@ struct EditorView: View {
             }
         }
         .onDisappear { vm.save(); orientation.unlock() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background || phase == .inactive { vm.save() }
+        }
         .sheet(isPresented: $showLayers) {
             LayersPanel(vm: vm).presentationDetents([.medium, .large])
         }
@@ -171,7 +181,8 @@ struct EditorView: View {
     }
 
     /// Bottom page navigator: flip between pages, add, or delete. Mirrors the
-    /// two-finger swipe gesture (swipe up = next/new page, down = previous).
+    /// pull gesture (drag firmly past the bottom edge = next/new page, past
+    /// the top edge = previous page).
     private var pageControl: some View {
         HStack(spacing: 14) {
             Button { vm.previousPage() } label: {
@@ -242,11 +253,15 @@ struct EditorView: View {
         }
     }
 
-    /// Route a picker to the iPad side panel ONLY when the user already has it
-    /// expanded (panels never auto-expand); otherwise fall back to a sheet.
+    /// Route a picker to the iPad side panel (auto-expanding it) instead of a
+    /// pop-up sheet, so the selection UI never covers the canvas / sits too
+    /// low. On iPhone (compact width, no side panel) fall back to a sheet.
     private func openPicker(_ tab: SidePanelTab, sheet: () -> Void) {
-        if isRegular && !sidePanelCollapsed {
+        if isRegular {
             sidePanelTab = tab
+            if sidePanelCollapsed {
+                withAnimation(.easeInOut(duration: 0.22)) { sidePanelCollapsed = false }
+            }
         } else {
             sheet()
         }
@@ -284,6 +299,7 @@ struct EditorView: View {
                     }
                     gridMenuButton
                     transformMenuButton
+                    fingerDrawingButton
                 }
                 .padding(.horizontal, 2)
             }
@@ -410,6 +426,21 @@ struct EditorView: View {
         }
         .help("Transform")
         .accessibilityLabel("Transform")
+    }
+
+    /// Finger drawing on/off, visible in the bar (not buried in the overflow
+    /// menu): with the iPad default being Pencil-only, users without an Apple
+    /// Pencil need one obvious tap to start drawing with a finger.
+    private var fingerDrawingButton: some View {
+        Button { vm.setFingerDrawing(!vm.fingerDrawingEnabled) } label: {
+            Image(systemName: vm.fingerDrawingEnabled ? "hand.draw.fill" : "hand.draw")
+                .foregroundStyle(vm.fingerDrawingEnabled ? .white : Theme.ink)
+                .frame(minWidth: 44, minHeight: 44)
+                .background(vm.fingerDrawingEnabled ? Theme.primary : .clear,
+                            in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+        }
+        .help(vm.fingerDrawingEnabled ? "Finger drawing on" : "Finger drawing off (Pencil only)")
+        .accessibilityLabel("Finger drawing")
     }
 
     private func toolButton(_ mode: ToolMode) -> some View {
@@ -551,26 +582,38 @@ struct EditorView: View {
     private var canvasArea: some View {
         GeometryReader { geo in
             let cs = vm.document.canvasSize
-            let scale = min(geo.size.width / cs.width, geo.size.height / cs.height)
+            let fit = min(geo.size.width / cs.width, geo.size.height / cs.height)
             // On-screen (display) size of the canvas; drawing stays in `cs` space.
-            let disp = CGSize(width: cs.width * scale, height: cs.height * scale)
+            let disp = CGSize(width: cs.width * fit, height: cs.height * fit)
+            // Effective viewport: the PKCanvasView owns pinch-zoom/pan; every
+            // other layer image mirrors its zoom + offset so all layers stay in
+            // register (previously only the live ink zoomed, so strokes landed
+            // "in the wrong place" relative to the other layers).
+            let eff = canvasZoom > 0 ? canvasZoom : fit
+            let off = canvasZoom > 0 ? canvasOffset : .zero
+            let zf = fit > 0 ? eff / fit : 1
             ZStack {
-                // Background + template
-                Color(hex: vm.document.backgroundHex)
-                Image(uiImage: vm.templateImage(size: cs))
-                    .resizable().frame(width: disp.width, height: disp.height)
-
-                // Layers in order; active layer is the live PencilKit canvas.
-                ForEach(Array(vm.document.layers.enumerated()), id: \.element.id) { idx, layer in
-                    if layer.isVisible {
-                        layerView(idx: idx, layer: layer, displaySize: disp, canvasSize: cs)
-                    }
+                // Background + template (zoom-synced)
+                Group {
+                    Color(hex: vm.document.backgroundHex)
+                    Image(uiImage: vm.templateImage(size: cs))
+                        .resizable().frame(width: disp.width, height: disp.height)
                 }
+                .scaleEffect(zf, anchor: .topLeading)
+                .offset(x: -off.x, y: -off.y)
 
-                // Symmetry + perspective/drawing guides
-                SymmetryGuides(mode: vm.symmetry, size: disp)
-                    .allowsHitTesting(false)
-                PerspectiveGuides(guide: vm.perspective, size: disp)
+                // Layers in order. ONE persistent PencilKit canvas hosts the
+                // active layer's ink; all other layers are zoom-synced images.
+                layerStack(cs: cs, disp: disp, zf: zf, off: off)
+
+                // Symmetry + perspective/drawing guides (zoom-synced)
+                Group {
+                    SymmetryGuides(mode: vm.symmetry, size: disp)
+                    PerspectiveGuides(guide: vm.perspective, size: disp)
+                }
+                .scaleEffect(zf, anchor: .topLeading)
+                .offset(x: -off.x, y: -off.y)
+                .allowsHitTesting(false)
 
                 // Fill tap catcher (only active in fill mode, sits on top).
                 // Map the tap from display space back into canvas coordinates.
@@ -578,25 +621,23 @@ struct EditorView: View {
                     Color.clear.contentShape(Rectangle())
                         .frame(width: disp.width, height: disp.height)
                         .gesture(DragGesture(minimumDistance: 0).onEnded { value in
-                            let p = CGPoint(x: value.location.x / max(scale, 0.0001),
-                                            y: value.location.y / max(scale, 0.0001))
-                            vm.performFill(at: p)
+                            vm.performFill(at: canvasPoint(value.location, eff: eff, off: off))
                         })
                 }
 
                 // Shape mode: drag out a bounding rect, then adjust with handles.
                 if vm.toolMode == .shape {
                     if vm.pendingShape == nil {
-                        shapeDraftCatcher(disp: disp, scale: scale)
+                        shapeDraftCatcher(disp: disp, eff: eff, off: off)
                     } else {
-                        ShapeEditingOverlay(vm: vm, scale: scale, displaySize: disp)
+                        ShapeEditingOverlay(vm: vm, scale: fit, displaySize: disp)
                             .frame(width: disp.width, height: disp.height)
                     }
                 }
 
                 // Stardust brush: drag to sprinkle stars, baked on release.
                 if vm.isStardustActive {
-                    stardustCatcher(disp: disp, scale: scale)
+                    stardustCatcher(disp: disp, eff: eff, off: off)
                 }
             }
             .frame(width: disp.width, height: disp.height)
@@ -610,28 +651,118 @@ struct EditorView: View {
         .padding(16)
     }
 
+    /// All layers in order, split around the single persistent PencilKit
+    /// canvas: layers below the active one (and the active layer's raster
+    /// contents) render beneath it, layers above render on top. Keeping ONE
+    /// canvas across layer/page switches (instead of recreating it inside the
+    /// ForEach) preserves zoom and prevents in-flight strokes from committing
+    /// to the wrong layer when the active layer changes.
+    @ViewBuilder
+    private func layerStack(cs: CGSize, disp: CGSize, zf: CGFloat, off: CGPoint) -> some View {
+        let layers = vm.document.layers
+        let active = vm.activeIndex
+        let activeLayer = layers.indices.contains(active) ? layers[active] : nil
+
+        // Below the ink: earlier layers + the active layer's raster contents
+        // (fills, filters, imported art).
+        ForEach(Array(layers.enumerated()), id: \.element.id) { idx, layer in
+            if layer.isVisible && idx <= active {
+                if idx == active {
+                    if layer.isReference {
+                        // A reference selected as the active layer still shows
+                        // (the live canvas is hidden/locked for references).
+                        zoomSyncedImage(vm.inactiveLayerImage(layer, size: cs),
+                                        disp: disp, zf: zf, off: off)
+                            .opacity(layer.opacity)
+                    } else if let image = layer.image {
+                        zoomSyncedImage(image, disp: disp, zf: zf, off: off)
+                            .opacity(layer.opacity)
+                    }
+                } else {
+                    zoomSyncedImage(vm.inactiveLayerImage(layer, size: cs),
+                                    disp: disp, zf: zf, off: off)
+                        .opacity(layer.opacity)
+                }
+            }
+        }
+
+        CanvasView(drawing: Binding(get: { vm.activeDrawing }, set: { vm.activeDrawing = $0 }),
+                   tool: vm.currentTool,
+                   isRulerActive: vm.isRulerActive,
+                   // Allow finger for lasso selection even when finger-drawing is off.
+                   pencilOnly: vm.pencilOnly && vm.toolMode != .lasso,
+                   symmetry: vm.symmetry,
+                   canvasSize: cs,
+                   isLocked: (activeLayer?.isLocked ?? true)
+                       || !(activeLayer?.isVisible ?? false)
+                       || (activeLayer?.isReference ?? false)
+                       || vm.toolMode == .fill || vm.toolMode == .shape
+                       || vm.isStardustActive,
+                   handle: canvasHandle,
+                   // Pull firmly past the bottom edge → next page (creates one
+                   // past the last); past the top edge → previous page.
+                   onPullNext: { vm.nextPageOrCreate() },
+                   onPullPrevious: { vm.previousPage() },
+                   onTwoFingerTap: { if vm.canUndo { vm.undo() } },
+                   onThreeFingerTap: { if vm.canRedo { vm.redo() } },
+                   onPencilAction: { vm.togglePencilEraser() },
+                   onViewportChange: { zoom, offset in
+                       canvasZoom = zoom
+                       canvasOffset = offset
+                   })
+            .frame(width: disp.width, height: disp.height)
+            .opacity((activeLayer?.isVisible ?? false) && !(activeLayer?.isReference ?? false)
+                     ? (activeLayer?.opacity ?? 1) : 0)
+
+        // Above the ink: later layers (including any tracing reference).
+        ForEach(Array(layers.enumerated()), id: \.element.id) { idx, layer in
+            if layer.isVisible && idx > active {
+                zoomSyncedImage(vm.inactiveLayerImage(layer, size: cs),
+                                disp: disp, zf: zf, off: off)
+                    .opacity(layer.opacity)
+            }
+        }
+    }
+
+    /// A non-active layer image, transformed to match the canvas viewport.
+    private func zoomSyncedImage(_ image: UIImage, disp: CGSize, zf: CGFloat,
+                                 off: CGPoint) -> some View {
+        Image(uiImage: image)
+            .resizable()
+            .frame(width: disp.width, height: disp.height)
+            .scaleEffect(zf, anchor: .topLeading)
+            .offset(x: -off.x, y: -off.y)
+            .allowsHitTesting(false)
+    }
+
+    /// Display-space point → canvas coordinates, honoring the live viewport.
+    private func canvasPoint(_ p: CGPoint, eff: CGFloat, off: CGPoint) -> CGPoint {
+        let s = max(eff, 0.0001)
+        return CGPoint(x: (p.x + off.x) / s, y: (p.y + off.y) / s)
+    }
+
     /// Catches the initial drag that lays out a new shape, drawing a live outline
     /// preview until the drag ends (at which point the handle overlay takes over).
     @ViewBuilder
-    private func shapeDraftCatcher(disp: CGSize, scale: CGFloat) -> some View {
+    private func shapeDraftCatcher(disp: CGSize, eff: CGFloat, off: CGPoint) -> some View {
         ZStack {
             Color.clear.contentShape(Rectangle())
                 .frame(width: disp.width, height: disp.height)
                 .gesture(DragGesture(minimumDistance: 4)
                     .onChanged { value in
-                        draftRect = canvasRect(value.startLocation, value.location, scale: scale)
+                        draftRect = canvasRect(value.startLocation, value.location, eff: eff, off: off)
                     }
                     .onEnded { value in
-                        let rect = canvasRect(value.startLocation, value.location, scale: scale)
+                        let rect = canvasRect(value.startLocation, value.location, eff: eff, off: off)
                         draftRect = nil
                         if rect.width > 4 || rect.height > 4 { vm.beginShape(rect: rect) }
                     })
             if let dr = draftRect {
                 ShapeOutline(kind: vm.shapeKind)
-                    .stroke(vm.color, style: StrokeStyle(lineWidth: max(1, vm.shapeStrokeWidth * scale),
+                    .stroke(vm.color, style: StrokeStyle(lineWidth: max(1, vm.shapeStrokeWidth * eff),
                                                          lineCap: .round, lineJoin: .round))
-                    .frame(width: dr.width * scale, height: dr.height * scale)
-                    .position(x: dr.midX * scale, y: dr.midY * scale)
+                    .frame(width: dr.width * eff, height: dr.height * eff)
+                    .position(x: dr.midX * eff - off.x, y: dr.midY * eff - off.y)
                     .allowsHitTesting(false)
             }
         }
@@ -640,69 +771,33 @@ struct EditorView: View {
     /// Sprinkles stardust along the drag with a live preview; the stamps are
     /// baked into the layer as strokes when the finger lifts (one undo step).
     @ViewBuilder
-    private func stardustCatcher(disp: CGSize, scale: CGFloat) -> some View {
+    private func stardustCatcher(disp: CGSize, eff: CGFloat, off: CGPoint) -> some View {
         ZStack {
             Color.clear.contentShape(Rectangle())
                 .frame(width: disp.width, height: disp.height)
                 .gesture(DragGesture(minimumDistance: 0)
                     .onChanged { value in
-                        let s = max(scale, 0.0001)
-                        vm.sprinkleStardust(at: CGPoint(x: value.location.x / s,
-                                                        y: value.location.y / s),
-                                            displayScale: s)
+                        vm.sprinkleStardust(at: canvasPoint(value.location, eff: eff, off: off),
+                                            displayScale: max(eff, 0.0001))
                     }
                     .onEnded { _ in vm.endStardustStroke() })
             Canvas { ctx, _ in
                 for stamp in vm.stardustStamps {
-                    ctx.fill(Stardust.previewPath(for: stamp, scale: scale),
+                    ctx.fill(Stardust.previewPath(for: stamp, scale: eff),
                              with: .color(vm.color.opacity(stamp.alpha)))
                 }
             }
             .frame(width: disp.width, height: disp.height)
+            .offset(x: -off.x, y: -off.y)
             .allowsHitTesting(false)
         }
     }
 
-    private func canvasRect(_ a: CGPoint, _ b: CGPoint, scale: CGFloat) -> CGRect {
-        let s = max(scale, 0.0001)
-        return CGRect(x: min(a.x, b.x) / s, y: min(a.y, b.y) / s,
-                      width: abs(a.x - b.x) / s, height: abs(a.y - b.y) / s)
-    }
-
-    @ViewBuilder
-    private func layerView(idx: Int, layer: Layer, displaySize: CGSize, canvasSize: CGSize) -> some View {
-        if idx == vm.activeIndex && !layer.isReference {
-            ZStack {
-                // Raster contents of the active layer (fills, filters, imported art)
-                // render beneath the live PencilKit canvas.
-                if let image = layer.image {
-                    Image(uiImage: image)
-                        .resizable()
-                        .frame(width: displaySize.width, height: displaySize.height)
-                }
-                CanvasView(drawing: Binding(get: { vm.activeDrawing }, set: { vm.activeDrawing = $0 }),
-                           tool: vm.currentTool,
-                           isRulerActive: vm.isRulerActive,
-                           // Allow finger for lasso selection even when finger-drawing is off.
-                           pencilOnly: vm.pencilOnly && vm.toolMode != .lasso,
-                           symmetry: vm.symmetry,
-                           canvasSize: canvasSize,
-                           isLocked: layer.isLocked || vm.toolMode == .fill || vm.toolMode == .shape
-                               || vm.isStardustActive,
-                           handle: canvasHandle,
-                           // Swiping up past the last page starts a new page.
-                           onSwipeUp: { vm.nextPageOrCreate() },
-                           onSwipeDown: { vm.previousPage() },
-                           onPencilAction: { vm.togglePencilEraser() })
-                    .frame(width: displaySize.width, height: displaySize.height)
-            }
-            .opacity(layer.opacity)
-        } else {
-            Image(uiImage: vm.inactiveLayerImage(layer, size: canvasSize))
-                .resizable()
-                .frame(width: displaySize.width, height: displaySize.height)
-                .opacity(layer.opacity)
-        }
+    private func canvasRect(_ a: CGPoint, _ b: CGPoint, eff: CGFloat, off: CGPoint) -> CGRect {
+        let pa = canvasPoint(a, eff: eff, off: off)
+        let pb = canvasPoint(b, eff: eff, off: off)
+        return CGRect(x: min(pa.x, pb.x), y: min(pa.y, pb.y),
+                      width: abs(pa.x - pb.x), height: abs(pa.y - pb.y))
     }
 }
 
