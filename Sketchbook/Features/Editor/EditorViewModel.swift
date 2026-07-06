@@ -26,7 +26,17 @@ final class EditorViewModel: ObservableObject {
     @Published var color: Color = .black { didSet { syncPendingShapeStyle() } }
     @Published var width: CGFloat = EditorViewModel.defaultBrushSize { didSet { syncPendingShapeStyle() } }
     @Published var eraseWidth: CGFloat = 24
-    @Published var toolMode: ToolMode = .draw
+    @Published var toolMode: ToolMode = .draw {
+        didSet {
+            // Leaving shape mode with a shape still being adjusted BAKES it in
+            // instead of silently dropping it — e.g. drag out a circle, then
+            // tap the fill tool: the circle must stay (and be fillable), not
+            // disappear because its ✓ button was never tapped.
+            if oldValue == .shape, toolMode != .shape, pendingShape != nil {
+                commitPendingShape()
+            }
+        }
+    }
     // MARK: Vector shapes
     @Published var shapeKind: ShapeKind = .rectangle
     /// Outline width for vector shapes — independent of the brush size so
@@ -618,7 +628,11 @@ final class EditorViewModel: ObservableObject {
             Haptics.select()
             return
         }
-        let base = LayerCompositor.composite(document, includeReference: false, scale: 1)
+        // Boundaries come from the ARTWORK only (no background/template):
+        // otherwise ruled/grid template lines fence the flood fill into thin
+        // bands and fills look broken on any non-blank paper.
+        let base = LayerCompositor.composite(document, includeReference: false,
+                                             includeBackground: false, scale: 1)
         guard let patch = FloodFill.fill(in: base, at: point, with: UIColor(color)) else { return }
         snapshot()
         // Composite the filled patch onto the active layer's raster image.

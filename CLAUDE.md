@@ -22,7 +22,8 @@ RealityKit). Live on the App Store (bundle `com.tertiaryinfotech.sketchbookapp`,
 
 ## Build & release
 
-- **XcodeGen project**: edit `project.yml`, then `xcodegen generate`. The version is
+- **XcodeGen project**: edit `project.yml`, then `xcodegen generate` (a PostToolUse hook in
+  `.claude/settings.json` runs it automatically after any `project.yml` edit). The version is
   `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` in `project.yml`; `App/Info.plist` uses
   `$(…)` placeholders, so bump only `project.yml`.
 - **Build number must strictly increase** on every App Store upload.
@@ -52,10 +53,21 @@ RealityKit). Live on the App Store (bundle `com.tertiaryinfotech.sketchbookapp`,
 - Finger drawing defaults OFF on iPad (Pencil-only; fingers pan/zoom) and ON on iPhone —
   keep `EditorViewModel.init` and `SettingsView` in agreement; UI tests pass
   `-fingerDrawing YES` so synthetic touches draw.
+- **Render PKDrawing under light traits only** (1.5+): in Dark Mode `PKDrawing.image`
+  returns colour-INVERTED ink (black → white), which silently wipes artwork when baked
+  (adjustments, filters, exports, thumbnails). All rasterisation goes through
+  `LayerCompositor` (`renderInLightMode`) — never call `drawing.image(from:scale:)` outside
+  it without pinning `UITraitCollection(userInterfaceStyle: .light)`.
+- A pending vector shape is COMMITTED (not dropped) when the tool mode leaves `.shape` or
+  on Back — see `EditorViewModel.toolMode.didSet`. Tool buttons that open pickers use the
+  tap-again pattern (first tap selects the tool, second opens its popover); a popover on
+  the first tap swallows the next canvas tap as its dismissal.
+- Flood-fill boundary detection composites the ARTWORK only (`includeBackground: false`) —
+  template grid/ruled lines must not fence fills.
 
 ## Follow-ups / future work
 
-See **[ROADMAP.md](ROADMAP.md)** for the tracked backlog. After **1.2** is approved on the
-App Store, prioritise the **P0 multi-page content-loss bug** (drawings lost when navigating
-between pages — pre-existing since 1.1). Planned features include **vector shapes** and
-**color-filling vector shapes**. Update ROADMAP.md as items are completed or added.
+See **[ROADMAP.md](ROADMAP.md)** for the tracked backlog. **1.5** (in review) fixed the
+layer/zoom registration, dark-mode adjustment wipe, pull-to-flip/create pages, and shipped
+vector-shape colour fills, layer thumbnails and the fill colour dialog. Update ROADMAP.md
+as items are completed or added.

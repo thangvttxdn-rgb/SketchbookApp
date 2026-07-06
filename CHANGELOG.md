@@ -11,6 +11,10 @@
 - Pages sidebar: reliable thumbnails and smooth drag-to-reorder (stable page identity).
 - Pickers and Adjustments open in the right side panel on iPad (auto-expanding) instead of a pop-up sheet over the canvas.
 - Fixed layer opacity being applied twice to non-active layers.
+- Fixed adjustments and filters erasing artwork in Dark Mode (ink was baked in colour-inverted, turning white on the white paper). Applies to all adjustments, filters, exports and thumbnails.
+- Fixed a shape being dropped if you switched tools while still adjusting it — it is now baked in automatically (e.g. drag out a circle, then tap Fill: the circle stays and can be filled).
+- Fill tool now opens a colour dialog right on the toolbar (colour well + quick swatches).
+- Flood fill no longer treats ruled/grid template lines as boundaries.
 - Autosave: your work is saved a few seconds after every change and when the app goes to the background.
 
 ## [1.4]

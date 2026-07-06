@@ -12,6 +12,7 @@ struct EditorView: View {
     @State private var showBrushes = false
     @State private var showShapes = false
     @State private var showWidth = false
+    @State private var showFillColor = false
     /// In-progress shape drag (canvas coords) before handles appear.
     @State private var draftRect: CGRect?
     @State private var showPhotoPicker = false
@@ -272,7 +273,11 @@ struct EditorView: View {
     private var topBar: some View {
         HStack(spacing: 6) {
             // Leading — pinned. Always reachable, never clipped.
-            iconButton("chevron.left", label: "Back") { vm.save(); dismiss() }
+            iconButton("chevron.left", label: "Back") {
+                vm.commitPendingShape()   // don't drop a shape mid-adjustment
+                vm.save()
+                dismiss()
+            }
 
             Divider().frame(height: 28)
 
@@ -292,7 +297,7 @@ struct EditorView: View {
                         .popover(isPresented: $showWidth) { widthPopover }
 
                     shapesButton
-                    toolButton(.fill)
+                    fillButton
                     toolButton(.lasso)
                     iconButton("wand.and.stars", label: "Adjustments") {
                         openPicker(.adjust) { showAdjustments = true }
@@ -426,6 +431,53 @@ struct EditorView: View {
         }
         .help("Transform")
         .accessibilityLabel("Transform")
+    }
+
+    /// Fill tool — tap to select; tap again (when active) for the colour
+    /// dialog. Opening the dialog on the FIRST tap would swallow the next
+    /// canvas tap as a popover dismissal, forcing an extra tap before every
+    /// fill (mirrors the eraser button's tap-again-for-size pattern).
+    private var fillButton: some View {
+        Button {
+            if vm.toolMode == .fill { showFillColor = true }
+            else { vm.toolMode = .fill; Haptics.select() }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: ToolMode.fill.systemImage)
+                if vm.toolMode == .fill { Image(systemName: "chevron.down").font(.caption2) }
+            }
+            .foregroundStyle(vm.toolMode == .fill ? .white : Theme.ink)
+            .padding(.horizontal, 10).frame(minWidth: 44, minHeight: 44)
+            .background(vm.toolMode == .fill ? Theme.primary : .clear,
+                        in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+        }
+        .help("Fill")
+        .accessibilityLabel("Fill")
+        .popover(isPresented: $showFillColor) { fillColorPopover }
+    }
+
+    /// Compact fill-colour dialog: system colour well + quick swatches.
+    private var fillColorPopover: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            ColorPicker("Fill Color", selection: $vm.color, supportsOpacity: true)
+                .font(.subheadline.weight(.semibold))
+            let swatches = ["#111418", "#FFFFFF", "#E53935", "#FB8C00",
+                            "#FDD835", "#43A047", "#1E88E5", "#8E24AA"]
+            HStack(spacing: 8) {
+                ForEach(swatches, id: \.self) { hex in
+                    let c = Color(hex: hex)
+                    Button { vm.color = c } label: {
+                        Circle().fill(c)
+                            .frame(width: 26, height: 26)
+                            .overlay(Circle().stroke(Theme.mutedInk.opacity(0.3), lineWidth: 1))
+                    }
+                }
+            }
+            Text("Tap a shape or an enclosed area to fill it.")
+                .font(.caption).foregroundStyle(Theme.mutedInk)
+        }
+        .padding(14).frame(width: 300)
+        .presentationCompactAdaptation(.popover)
     }
 
     /// Finger drawing on/off, visible in the bar (not buried in the overflow
