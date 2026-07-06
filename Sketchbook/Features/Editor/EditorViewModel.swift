@@ -401,6 +401,17 @@ final class EditorViewModel: ObservableObject {
         goToPage(document.currentPageIndex - 1)
     }
 
+    /// Previous page, or — when already on the first page — create a new page
+    /// before it (notepad-style: a firm pull past the top edge always lands on
+    /// a page, prepending a blank one at the start when there is none).
+    func previousPageOrCreate() {
+        if document.currentPageIndex > 0 {
+            goToPage(document.currentPageIndex - 1)
+        } else {
+            addPageBefore()
+        }
+    }
+
     func deleteCurrentPage() {
         guard document.pages.count > 1 else { clearCurrentPage(); return }
         snapshot()

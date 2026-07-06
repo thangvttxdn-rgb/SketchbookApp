@@ -700,9 +700,10 @@ struct EditorView: View {
                        || vm.isStardustActive,
                    handle: canvasHandle,
                    // Pull firmly past the bottom edge → next page (creates one
-                   // past the last); past the top edge → previous page.
+                   // past the last); past the top edge → previous page (creates
+                   // one before the first) — same as the notepad app.
                    onPullNext: { vm.nextPageOrCreate() },
-                   onPullPrevious: { vm.previousPage() },
+                   onPullPrevious: { vm.previousPageOrCreate() },
                    onTwoFingerTap: { if vm.canUndo { vm.undo() } },
                    onThreeFingerTap: { if vm.canRedo { vm.redo() } },
                    onPencilAction: { vm.togglePencilEraser() },

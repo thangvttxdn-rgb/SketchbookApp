@@ -4,7 +4,7 @@
 - Major stability fix: all layers now zoom and pan together — strokes always land exactly where you draw them, on every layer, at every zoom level.
 - One persistent drawing canvas across layer and page switches: switching layers no longer resets the zoom or drops in-flight strokes onto the wrong layer.
 - Procreate-style quick gestures: two-finger tap to undo, three-finger tap to redo.
-- New page-flip gesture: drag firmly past the bottom edge of the page for the next page (creates one past the last), past the top edge for the previous page.
+- New page-flip gesture: drag firmly past the bottom edge of the page for the next page (creates one past the last), past the top edge for the previous page (creates one before the first).
 - Finger drawing is now off by default on iPad (Apple Pencil draws; fingers pan, zoom and undo) with a new one-tap toolbar toggle; on iPhone fingers still draw by default.
 - Palm rejection while drawing: a resting palm can no longer pan or zoom the page mid-stroke.
 - Layers panel: live thumbnail previews per layer (Procreate-style) and a per-layer opacity control.
