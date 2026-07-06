@@ -39,6 +39,19 @@ RealityKit). Live on the App Store (bundle `com.tertiaryinfotech.sketchbookapp`,
   or the live stroke is cancelled.
 - Commit drawing changes to the model synchronously on stroke end (not async), to avoid a
   re-render resetting the canvas to a stale value.
+- **One persistent `PKCanvasView`** (1.5+): the editor renders exactly one canvas, outside
+  the layer `ForEach`, with image layers split below/above it. Never move it back inside the
+  ForEach — recreating the canvas per layer switch resets zoom and can commit an in-flight
+  stroke to the wrong layer (the shared `activeDrawing` binding resolves at call time).
+- **Viewport sync** (1.5+): the canvas is the only zoomable scroll view; it reports
+  `zoomScale`/`contentOffset` up (`onViewportChange`) and every sibling layer/template/guide
+  image applies `scaleEffect(zoom/fit, anchor: .topLeading).offset(-contentOffset)` so all
+  layers stay in register. Don't reassign `contentSize` while zoomed (it clips the viewport).
+- Page-flip gesture is an overscroll pull (drag ~110 pt past the top/bottom edge at fit
+  zoom), not a swipe recognizer. Two-finger tap = undo, three-finger tap = redo.
+- Finger drawing defaults OFF on iPad (Pencil-only; fingers pan/zoom) and ON on iPhone —
+  keep `EditorViewModel.init` and `SettingsView` in agreement; UI tests pass
+  `-fingerDrawing YES` so synthetic touches draw.
 
 ## Follow-ups / future work
 
