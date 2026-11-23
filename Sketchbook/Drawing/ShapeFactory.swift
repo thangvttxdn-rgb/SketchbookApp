@@ -34,10 +34,40 @@ enum ShapeFactory {
             strokes.append(stroke)
         }
 
+        // Dimension line: arrowheads at both ends.
+        if shape.kind == .dimension {
+            let a = CGPoint(x: rect.minX, y: rect.minY), b = CGPoint(x: rect.maxX, y: rect.maxY)
+            let size = max(18, shape.style.strokeWidth * 4)
+            let color = UIColor(shape.style.strokeColor)
+            for (tip, from) in [(a, b), (b, a)] {
+                strokes.append(makeStroke(points: arrowhead(tip: tip, from: from, size: size),
+                                          color: color, width: max(1, shape.style.strokeWidth)))
+            }
+        }
+
         // Rotate / flip about the shape centre.
         let t = transform(around: shape.center,
                           angle: shape.rotation, flipH: shape.flipH, flipV: shape.flipV)
         return strokes.map { applying(t, to: $0) }
+    }
+
+    /// End points (canvas coords, after rotate/flip) of a linear shape.
+    static func endpoints(of shape: PendingShape) -> (CGPoint, CGPoint) {
+        let rect = shape.normalizedRect
+        let t = transform(around: shape.center,
+                          angle: shape.rotation, flipH: shape.flipH, flipV: shape.flipV)
+        return (CGPoint(x: rect.minX, y: rect.minY).applying(t),
+                CGPoint(x: rect.maxX, y: rect.maxY).applying(t))
+    }
+
+    /// Open "V" arrowhead at `tip`, pointing away from `from`. The tip vertex is
+    /// repeated so the stroke spline keeps it sharp.
+    private static func arrowhead(tip: CGPoint, from: CGPoint, size: CGFloat) -> [CGPoint] {
+        let angle = atan2(from.y - tip.y, from.x - tip.x)
+        let spread: CGFloat = .pi / 9   // 20°
+        let p1 = CGPoint(x: tip.x + size * cos(angle + spread), y: tip.y + size * sin(angle + spread))
+        let p2 = CGPoint(x: tip.x + size * cos(angle - spread), y: tip.y + size * sin(angle - spread))
+        return [p1, tip, tip, tip, p2]
     }
 
     /// Fill + refreshed outline for a shape that is already baked into a layer
@@ -96,7 +126,7 @@ enum ShapeFactory {
 
     private static func outlinePoints(kind: ShapeKind, rect: CGRect) -> [CGPoint] {
         switch kind {
-        case .line:
+        case .line, .dimension:
             // Top-left → bottom-right diagonal of the (normalised) bounding rect,
             // matching the on-screen preview.
             return [CGPoint(x: rect.minX, y: rect.minY), CGPoint(x: rect.maxX, y: rect.maxY)]
@@ -145,7 +175,7 @@ enum ShapeFactory {
                     CGPoint(x: rect.minX, y: cy + shaft)]
         case .heart:
             return heartVertices(in: rect)
-        case .ellipse, .line:
+        case .ellipse, .line, .dimension:
             return []
         }
     }
@@ -301,7 +331,7 @@ enum ShapeFactory {
     /// Interior x-spans of the shape at scanline `y`, sorted left to right.
     private static func spans(kind: ShapeKind, rect: CGRect, y: CGFloat) -> [(CGFloat, CGFloat)] {
         switch kind {
-        case .rectangle, .line:
+        case .rectangle, .line, .dimension:
             return [(rect.minX, rect.maxX)]
         case .ellipse:
             let cy = rect.midY, ry = rect.height / 2

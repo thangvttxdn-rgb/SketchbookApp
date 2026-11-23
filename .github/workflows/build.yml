@@ -1,0 +1,63 @@
+name: Build Vẽ Tranh (iPad)
+
+# Build trên máy macOS của GitHub — không cần Mac riêng.
+# Kết quả: file VeTranh-unsigned.ipa (chưa ký) trong mục Artifacts của mỗi lần chạy.
+# Cài lên iPad từ Windows bằng Sideloadly hoặc AltStore (ký bằng Apple ID của bạn).
+
+on:
+  push:
+    paths-ignore: ["**.md"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Chọn Xcode mới nhất
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Tạo project Xcode từ project.yml
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Build cho Simulator (kiểm tra biên dịch)
+        run: |
+          set -o pipefail
+          xcodebuild -project Sketchbook.xcodeproj -scheme Sketchbook \
+            -configuration Debug -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build-sim \
+            CODE_SIGNING_ALLOWED=NO build 2>&1 | grep -E "error:|warning: unre|BUILD (SUCCEEDED|FAILED)" || true
+          test -d build-sim/Build/Products/Debug-iphonesimulator/Sketchbook.app
+
+      - name: Build bản iPad chưa ký (.ipa)
+        run: |
+          set -o pipefail
+          xcodebuild -project Sketchbook.xcodeproj -scheme Sketchbook \
+            -configuration Release -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build 2>&1 | grep -E "error:|BUILD (SUCCEEDED|FAILED)" || true
+          APP=build/Build/Products/Release-iphoneos/Sketchbook.app
+          test -d "$APP"
+          mkdir -p Payload && cp -R "$APP" Payload/
+          zip -qry VeTranh-unsigned.ipa Payload
+
+      - name: Tải lên file .ipa
+        uses: actions/upload-artifact@v4
+        with:
+          name: VeTranh-unsigned-ipa
+          path: VeTranh-unsigned.ipa
+          retention-days: 30

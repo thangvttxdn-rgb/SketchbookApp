@@ -20,13 +20,13 @@ struct MainTabView: View {
     var body: some View {
         TabView(selection: $selection) {
             GalleryView()
-                .tabItem { Label("Sketches", systemImage: "square.grid.2x2.fill") }
+                .tabItem { Label("Tranh vẽ", systemImage: "square.grid.2x2.fill") }
                 .tag(0)
             FeedbackView()
-                .tabItem { Label("Feedback", systemImage: "bubble.left.and.bubble.right.fill") }
+                .tabItem { Label("Góp ý", systemImage: "bubble.left.and.bubble.right.fill") }
                 .tag(1)
             AboutView()
-                .tabItem { Label("About", systemImage: "info.circle.fill") }
+                .tabItem { Label("Giới thiệu", systemImage: "info.circle.fill") }
                 .tag(2)
         }
         .tint(Theme.primary)

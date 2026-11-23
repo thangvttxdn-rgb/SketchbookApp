@@ -15,11 +15,11 @@ enum SidePanelTab: String, CaseIterable, Identifiable {
     }
     var title: String {
         switch self {
-        case .brush: return "Brushes"
-        case .shapes: return "Shapes"
-        case .adjust: return "Adjustments"
-        case .color: return "Color"
-        case .layers: return "Layers"
+        case .brush: return "Cọ vẽ"
+        case .shapes: return "Hình"
+        case .adjust: return "Điều chỉnh"
+        case .color: return "Màu"
+        case .layers: return "Lớp"
         }
     }
 }
@@ -52,7 +52,7 @@ struct EditorSidePanel: View {
                     .frame(width: 40, height: 40)
                     .contentShape(Rectangle())
             }
-            .help("Collapse panel")
+            .help("Thu gọn bảng")
 
             Spacer()
 
@@ -107,12 +107,12 @@ struct ColorPickerContent: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                Text("COLOR").font(.caption.weight(.semibold)).foregroundStyle(Theme.mutedInk)
+                Text("MÀU").font(.caption.weight(.semibold)).foregroundStyle(Theme.mutedInk)
                 ColorPicker("Selected color", selection: $vm.color, supportsOpacity: true)
                     .padding(.horizontal, 14).padding(.vertical, 10)
                     .background(Theme.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
-                Text("PALETTE").font(.caption.weight(.semibold)).foregroundStyle(Theme.mutedInk)
+                Text("BẢNG MÀU").font(.caption.weight(.semibold)).foregroundStyle(Theme.mutedInk)
                 LazyVGrid(columns: columns, spacing: 12) {
                     ForEach(swatches, id: \.self) { hex in
                         let color = Color(hex: hex)

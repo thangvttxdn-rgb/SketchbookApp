@@ -5,7 +5,7 @@ import UIKit
 /// A single page within a sketchbook. Each page owns its own layer stack.
 struct Page: Identifiable, Codable, Equatable {
     var id: UUID = UUID()
-    var layers: [Layer] = [Layer(name: "Layer 1")]
+    var layers: [Layer] = [Layer(name: "Lớp 1")]
     var activeLayerIndex: Int = 0
 }
 
@@ -57,7 +57,7 @@ struct SketchDocument: Identifiable, Codable, Equatable {
     static let defaultSize = CGSize(width: 2048, height: 1536) // landscape iPad-ish canvas
 
     init(id: UUID = UUID(),
-         title: String = "Untitled",
+         title: String = "Chưa đặt tên",
          template: TemplateKind = .blank,
          size: CGSize = SketchDocument.defaultSize,
          backgroundHex: String = "#FFFFFF",
@@ -104,7 +104,7 @@ struct SketchDocument: Identifiable, Codable, Equatable {
             currentPageIndex = try c.decodeIfPresent(Int.self, forKey: .currentPageIndex) ?? 0
         } else {
             // Migrate a document saved before multi-page support.
-            let legacyLayers = try c.decodeIfPresent([Layer].self, forKey: .layers) ?? [Layer(name: "Layer 1")]
+            let legacyLayers = try c.decodeIfPresent([Layer].self, forKey: .layers) ?? [Layer(name: "Lớp 1")]
             let legacyActive = try c.decodeIfPresent(Int.self, forKey: .activeLayerIndex) ?? 0
             pages = [Page(layers: legacyLayers, activeLayerIndex: legacyActive)]
             currentPageIndex = 0
@@ -137,17 +137,19 @@ enum CanvasPreset: String, CaseIterable, Identifiable {
     case standard    // 3:4
     case wide        // 9:16
     case a4          // ISO A4 print
+    case a3          // ISO A3 (vẽ kỹ thuật)
     case letter      // US Letter print
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .square: return "Square"
-        case .standard: return "Standard"
-        case .wide: return "Wide"
+        case .square: return "Vuông"
+        case .standard: return "Tiêu chuẩn"
+        case .wide: return "Dài"
         case .a4: return "A4"
-        case .letter: return "Letter"
+        case .a3: return "A3"
+        case .letter: return "Letter (Mỹ)"
         }
     }
 
@@ -157,6 +159,7 @@ enum CanvasPreset: String, CaseIterable, Identifiable {
         case .standard: return "3:4"
         case .wide: return "9:16"
         case .a4: return "ISO A4"
+        case .a3: return "ISO A3"
         case .letter: return "US Letter"
         }
     }
@@ -167,6 +170,7 @@ enum CanvasPreset: String, CaseIterable, Identifiable {
         case .standard: return "rectangle.portrait"
         case .wide: return "rectangle.portrait"
         case .a4: return "doc"
+        case .a3: return "doc"
         case .letter: return "doc.plaintext"
         }
     }
@@ -178,6 +182,7 @@ enum CanvasPreset: String, CaseIterable, Identifiable {
         case .standard: return CGSize(width: 1536, height: 2048)
         case .wide: return CGSize(width: 1170, height: 2080)
         case .a4: return CGSize(width: 1654, height: 2339)
+        case .a3: return CGSize(width: 2339, height: 3308)   // 297 × 420 mm @ 200 dpi
         case .letter: return CGSize(width: 1700, height: 2200)
         }
     }
@@ -198,7 +203,14 @@ enum PaperColor: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    var title: String { rawValue.capitalized }
+    var title: String {
+        switch self {
+        case .white: return "Trắng"
+        case .cream: return "Kem"
+        case .gray: return "Xám"
+        case .black: return "Đen"
+        }
+    }
 
     var hex: String {
         switch self {

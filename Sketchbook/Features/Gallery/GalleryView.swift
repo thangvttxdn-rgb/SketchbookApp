@@ -1,4 +1,6 @@
 import SwiftUI
+import PhotosUI
+import UniformTypeIdentifiers
 
 struct GalleryView: View {
     @EnvironmentObject private var store: DocumentStore
@@ -6,6 +8,11 @@ struct GalleryView: View {
     @State private var openSketch: SketchDocument?
     @State private var showingNewSheet = false
     @State private var showingSettings = false
+    @State private var showingColoring = false
+    @State private var showingPDFImporter = false
+    @State private var showingPhotoPicker = false
+    @State private var photoItem: PhotosPickerItem?
+    @State private var importMessage: String?
 
     private let columns = [GridItem(.adaptive(minimum: 200), spacing: 20)]
 
@@ -28,13 +35,13 @@ struct GalleryView: View {
                             SketchCell(document: doc) { store.toggleFavorite(doc) }
                                 .onTapGesture { openSketch = doc }
                                 .contextMenu {
-                                    Button { openSketch = doc } label: { Label("Open", systemImage: "pencil") }
+                                    Button { openSketch = doc } label: { Label("Mở", systemImage: "pencil") }
                                     Button { store.toggleFavorite(doc) } label: {
-                                        Label(doc.isFavorite ? "Unfavorite" : "Favorite",
+                                        Label(doc.isFavorite ? "Bỏ yêu thích" : "Yêu thích",
                                               systemImage: doc.isFavorite ? "star.slash" : "star")
                                     }
-                                    Button { store.duplicate(doc) } label: { Label("Duplicate", systemImage: "plus.square.on.square") }
-                                    Button(role: .destructive) { store.delete(doc) } label: { Label("Delete", systemImage: "trash") }
+                                    Button { store.duplicate(doc) } label: { Label("Nhân bản", systemImage: "plus.square.on.square") }
+                                    Button(role: .destructive) { store.delete(doc) } label: { Label("Xoá", systemImage: "trash") }
                                 }
                         }
                     }
@@ -42,7 +49,7 @@ struct GalleryView: View {
                 }
             }
             .background(Theme.background.ignoresSafeArea())
-            .navigationTitle("Sketches")
+            .navigationTitle("Tranh vẽ")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -52,7 +59,12 @@ struct GalleryView: View {
                     .accessibilityLabel("Settings")
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { showingNewSheet = true } label: { Label("New", systemImage: "plus") }
+                    Menu {
+                        Button { showingNewSheet = true } label: { Label("Bản vẽ mới", systemImage: "square.and.pencil") }
+                        Button { showingPDFImporter = true } label: { Label("Ghi chú lên PDF", systemImage: "doc.text") }
+                        Button { showingPhotoPicker = true } label: { Label("Ghi chú lên ảnh", systemImage: "photo") }
+                        Button { showingColoring = true } label: { Label("Tô màu cho bé", systemImage: "paintpalette") }
+                    } label: { Label("Mới", systemImage: "plus") }
                 }
             }
             .sheet(isPresented: $showingNewSheet) {
@@ -61,6 +73,46 @@ struct GalleryView: View {
                     showingNewSheet = false
                     openSketch = saved
                 }
+            }
+            .sheet(isPresented: $showingColoring) {
+                ColoringPickerSheet { doc in
+                    let saved = store.save(doc)
+                    showingColoring = false
+                    openSketch = saved
+                }
+            }
+            .fileImporter(isPresented: $showingPDFImporter, allowedContentTypes: [.pdf]) { result in
+                guard case .success(let url) = result else { return }
+                let scoped = url.startAccessingSecurityScopedResource()
+                defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+                do {
+                    let (doc, skipped) = try AnnotationImporter.document(fromPDF: url)
+                    openSketch = store.save(doc)
+                    if skipped > 0 {
+                        importMessage = "PDF dài hơn \(AnnotationImporter.maxPDFPages) trang: đã mở \(AnnotationImporter.maxPDFPages) trang đầu, bỏ qua \(skipped) trang."
+                    }
+                } catch {
+                    importMessage = error.localizedDescription
+                }
+            }
+            .photosPicker(isPresented: $showingPhotoPicker, selection: $photoItem, matching: .images)
+            .onChange(of: photoItem) { _, item in
+                guard let item else { return }
+                photoItem = nil
+                Task {
+                    if let data = try? await item.loadTransferable(type: Data.self),
+                       let image = UIImage(data: data) {
+                        openSketch = store.save(AnnotationImporter.document(fromImage: image, title: "Ghi chú ảnh"))
+                    } else {
+                        importMessage = "Không mở được ảnh này."
+                    }
+                }
+            }
+            .alert("Thông báo", isPresented: Binding(get: { importMessage != nil },
+                                                    set: { if !$0 { importMessage = nil } })) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(importMessage ?? "")
             }
             .fullScreenCover(item: $openSketch) { doc in
                 EditorView(document: doc)
@@ -82,10 +134,13 @@ struct GalleryView: View {
         VStack(spacing: 16) {
             Image(systemName: "scribble.variable")
                 .font(.system(size: 64)).foregroundStyle(Theme.primary)
-            Text("No sketches yet").font(.title2.bold()).foregroundStyle(Theme.ink)
-            Text("Tap + to start your first sketch.").foregroundStyle(Theme.mutedInk)
+            Text("Chưa có tranh nào").font(.title2.bold()).foregroundStyle(Theme.ink)
+            Text("Chạm + để bắt đầu bức tranh đầu tiên.").foregroundStyle(Theme.mutedInk)
+            Button { showingColoring = true } label: {
+                Label("Tô màu cho bé", systemImage: "paintpalette")
+            }
             Button { showingNewSheet = true } label: {
-                Label("New Sketch", systemImage: "plus")
+                Label("Bản vẽ mới", systemImage: "plus")
                     .foregroundStyle(.white).padding(.horizontal, 20).padding(.vertical, 12)
                     .background(Theme.primary, in: Capsule())
             }

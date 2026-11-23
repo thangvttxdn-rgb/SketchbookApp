@@ -25,16 +25,16 @@ enum SketchAdjustment: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .hsb: return "Hue, Saturation, Brightness"
-        case .colorBalance: return "Colour Balance"
-        case .gradientMapWarm: return "Gradient Map"
-        case .gaussianBlur: return "Gaussian Blur"
-        case .motionBlur: return "Motion Blur"
-        case .noise: return "Noise"
-        case .sharpen: return "Sharpen"
-        case .bloom: return "Bloom"
-        case .halftone: return "Halftone"
-        case .chromaticAberration: return "Chromatic Aberration"
+        case .hsb: return "Sắc độ, Bão hoà, Độ sáng"
+        case .colorBalance: return "Cân bằng màu"
+        case .gradientMapWarm: return "Bản đồ dải màu"
+        case .gaussianBlur: return "Làm mờ Gauss"
+        case .motionBlur: return "Mờ chuyển động"
+        case .noise: return "Nhiễu hạt"
+        case .sharpen: return "Làm nét"
+        case .bloom: return "Toả sáng"
+        case .halftone: return "Chấm lưới"
+        case .chromaticAberration: return "Lệch màu"
         }
     }
 
@@ -62,30 +62,30 @@ enum SketchAdjustment: String, CaseIterable, Identifiable {
     var parameters: [AdjustmentParam] {
         switch self {
         case .hsb:
-            return [AdjustmentParam(key: "hue", label: "Hue", range: -180...180, initial: 0, unit: "°"),
-                    AdjustmentParam(key: "saturation", label: "Saturation", range: 0...2, initial: 1),
-                    AdjustmentParam(key: "brightness", label: "Brightness", range: -0.5...0.5, initial: 0)]
+            return [AdjustmentParam(key: "hue", label: "Sắc độ", range: -180...180, initial: 0, unit: "°"),
+                    AdjustmentParam(key: "saturation", label: "Bão hoà", range: 0...2, initial: 1),
+                    AdjustmentParam(key: "brightness", label: "Độ sáng", range: -0.5...0.5, initial: 0)]
         case .colorBalance:
-            return [AdjustmentParam(key: "temperature", label: "Warmth", range: 3000...10000, initial: 6500, unit: "K"),
-                    AdjustmentParam(key: "tint", label: "Tint", range: -100...100, initial: 0)]
+            return [AdjustmentParam(key: "temperature", label: "Độ ấm", range: 3000...10000, initial: 6500, unit: "K"),
+                    AdjustmentParam(key: "tint", label: "Ánh màu", range: -100...100, initial: 0)]
         case .gradientMapWarm:
-            return [AdjustmentParam(key: "intensity", label: "Intensity", range: 0...1, initial: 0.8)]
+            return [AdjustmentParam(key: "intensity", label: "Cường độ", range: 0...1, initial: 0.8)]
         case .gaussianBlur:
-            return [AdjustmentParam(key: "radius", label: "Radius", range: 0...40, initial: 8, unit: "px")]
+            return [AdjustmentParam(key: "radius", label: "Bán kính", range: 0...40, initial: 8, unit: "px")]
         case .motionBlur:
-            return [AdjustmentParam(key: "radius", label: "Distance", range: 0...40, initial: 20, unit: "px"),
-                    AdjustmentParam(key: "angle", label: "Angle", range: -180...180, initial: 0, unit: "°")]
+            return [AdjustmentParam(key: "radius", label: "Khoảng cách", range: 0...40, initial: 20, unit: "px"),
+                    AdjustmentParam(key: "angle", label: "Góc", range: -180...180, initial: 0, unit: "°")]
         case .noise:
-            return [AdjustmentParam(key: "amount", label: "Amount", range: 0...1, initial: 0.25)]
+            return [AdjustmentParam(key: "amount", label: "Mức độ", range: 0...1, initial: 0.25)]
         case .sharpen:
-            return [AdjustmentParam(key: "sharpness", label: "Amount", range: 0...2, initial: 0.7)]
+            return [AdjustmentParam(key: "sharpness", label: "Mức độ", range: 0...2, initial: 0.7)]
         case .bloom:
-            return [AdjustmentParam(key: "intensity", label: "Intensity", range: 0...1.5, initial: 0.6),
-                    AdjustmentParam(key: "radius", label: "Radius", range: 1...30, initial: 10, unit: "px")]
+            return [AdjustmentParam(key: "intensity", label: "Cường độ", range: 0...1.5, initial: 0.6),
+                    AdjustmentParam(key: "radius", label: "Bán kính", range: 1...30, initial: 10, unit: "px")]
         case .halftone:
-            return [AdjustmentParam(key: "width", label: "Dot Size", range: 4...30, initial: 10, unit: "px")]
+            return [AdjustmentParam(key: "width", label: "Cỡ chấm", range: 4...30, initial: 10, unit: "px")]
         case .chromaticAberration:
-            return [AdjustmentParam(key: "offset", label: "Offset", range: 0...24, initial: 6, unit: "px")]
+            return [AdjustmentParam(key: "offset", label: "Độ lệch", range: 0...24, initial: 6, unit: "px")]
         }
     }
 

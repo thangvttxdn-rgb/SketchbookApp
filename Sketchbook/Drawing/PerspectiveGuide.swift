@@ -8,12 +8,12 @@ enum PerspectiveGuide: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .off: return "Off"
-        case .onePoint: return "1-Point Perspective"
-        case .twoPoint: return "2-Point Perspective"
-        case .threePoint: return "3-Point Perspective"
-        case .isometric: return "Isometric"
-        case .grid: return "Grid"
+        case .off: return "Tắt"
+        case .onePoint: return "Phối cảnh 1 điểm"
+        case .twoPoint: return "Phối cảnh 2 điểm"
+        case .threePoint: return "Phối cảnh 3 điểm"
+        case .isometric: return "Trục đo"
+        case .grid: return "Ô vuông"
         }
     }
 }

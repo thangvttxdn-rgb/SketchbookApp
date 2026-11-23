@@ -1,7 +1,8 @@
 import SwiftUI
 
 struct FeedbackView: View {
-    private let whatsAppNumber = "6588666375"
+    /// Hộp thư nhận góp ý — đổi tại đây nếu cần.
+    private let feedbackEmail = "nguyenquocthangtxdn@gmail.com"
     @State private var title = ""
     @State private var message = ""
 
@@ -13,16 +14,16 @@ struct FeedbackView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                Text("Feedback").font(.largeTitle.bold()).foregroundStyle(Theme.ink)
-                Text("Tell us what brushes, templates or effects you'd love to see next.")
+                Text("Góp ý").font(.largeTitle.bold()).foregroundStyle(Theme.ink)
+                Text("Bạn muốn thêm cọ, mẫu giấy hay hiệu ứng nào? Hãy góp ý cho chúng tôi.")
                     .foregroundStyle(Theme.mutedInk)
 
                 VStack(alignment: .leading, spacing: 14) {
-                    TextField("Title", text: $title)
+                    TextField("Tiêu đề", text: $title)
                         .textFieldStyle(.roundedBorder)
                     ZStack(alignment: .topLeading) {
                         if message.isEmpty {
-                            Text("Your message…").foregroundStyle(Theme.mutedInk)
+                            Text("Nội dung góp ý…").foregroundStyle(Theme.mutedInk)
                                 .padding(.top, 8).padding(.leading, 5)
                         }
                         TextEditor(text: $message)
@@ -35,7 +36,7 @@ struct FeedbackView: View {
                 .appCard()
 
                 Button(action: send) {
-                    Label("Send via WhatsApp", systemImage: "paperplane.fill")
+                    Label("Gửi qua Email", systemImage: "paperplane.fill")
                         .frame(maxWidth: .infinity)
                         .foregroundStyle(.white)
                         .padding(.vertical, 14)
@@ -49,14 +50,12 @@ struct FeedbackView: View {
     }
 
     private func send() {
-        var body = ""
         let t = title.trimmingCharacters(in: .whitespacesAndNewlines)
         let m = message.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !t.isEmpty { body += "*\(t)*\n" }
-        body += m
         var comps = URLComponents()
-        comps.scheme = "https"; comps.host = "wa.me"; comps.path = "/\(whatsAppNumber)"
-        comps.queryItems = [URLQueryItem(name: "text", value: body)]
+        comps.scheme = "mailto"; comps.path = feedbackEmail
+        comps.queryItems = [URLQueryItem(name: "subject", value: "Góp ý Vẽ Tranh" + (t.isEmpty ? "" : ": \(t)")),
+                            URLQueryItem(name: "body", value: m)]
         if let url = comps.url { UIApplication.shared.open(url) }
     }
 }

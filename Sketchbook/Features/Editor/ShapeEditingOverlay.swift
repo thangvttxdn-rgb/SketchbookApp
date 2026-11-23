@@ -33,6 +33,7 @@ struct ShapeEditingOverlay: View {
             ZStack(alignment: .topLeading) {
                 shapePreview(shape)
                 selectionBox(shape)
+                if shape.kind == .dimension { measurementBadge(shape) }
                 ForEach(Array(Corner.allCases.enumerated()), id: \.offset) { _, corner in
                     handle(systemName: nil)
                         .position(cornerPoint(shape, corner))
@@ -64,6 +65,18 @@ struct ShapeEditingOverlay: View {
             .scaleEffect(x: shape.flipH ? -1 : 1, y: shape.flipV ? -1 : 1)
             .rotationEffect(.radians(shape.rotation))
             .position(x: r.midX, y: r.midY)
+            .allowsHitTesting(false)
+    }
+
+    /// Số đo trực tiếp (mm) của đường ghi kích thước.
+    private func measurementBadge(_ shape: PendingShape) -> some View {
+        let r = shape.normalizedRect
+        let c = displayCenter(shape)
+        return Text(TechnicalDrawing.lengthLabel(px: hypot(r.width, r.height)))
+            .font(.callout.monospacedDigit().weight(.semibold))
+            .padding(.horizontal, 10).padding(.vertical, 4)
+            .background(.regularMaterial, in: Capsule())
+            .position(x: c.x, y: c.y - 28)
             .allowsHitTesting(false)
     }
 
@@ -131,7 +144,7 @@ struct ShapeEditingOverlay: View {
     // MARK: - Geometry helpers
 
     private func displayRect(_ shape: PendingShape) -> CGRect {
-        let r = shape.kind == .line ? shape.rect.standardized : shape.normalizedRect
+        let r = shape.kind.isLinear ? shape.rect.standardized : shape.normalizedRect
         return CGRect(x: r.minX * scale, y: r.minY * scale,
                       width: r.width * scale, height: r.height * scale)
     }
@@ -222,7 +235,7 @@ struct ShapeOutline: Shape {
             p.addRect(rect)
         case .ellipse:
             p.addEllipse(in: rect)
-        case .line:
+        case .line, .dimension:
             p.move(to: CGPoint(x: rect.minX, y: rect.minY))
             p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
         default:

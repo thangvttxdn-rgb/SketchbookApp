@@ -10,10 +10,10 @@ struct ShapesPanel: View {
         NavigationStack {
             ShapesPickerContent(vm: vm)
                 .background(Theme.background.ignoresSafeArea())
-                .navigationTitle("Shapes")
+                .navigationTitle("Hình")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
-                    ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+                    ToolbarItem(placement: .confirmationAction) { Button("Xong") { dismiss() } }
                 }
         }
     }
@@ -30,20 +30,20 @@ struct ShapesPickerContent: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                Text("SHAPE").font(.caption.weight(.semibold)).foregroundStyle(Theme.mutedInk)
+                Text("HÌNH").font(.caption.weight(.semibold)).foregroundStyle(Theme.mutedInk)
                 LazyVGrid(columns: columns, spacing: 12) {
                     ForEach(ShapeKind.allCases) { kind in
                         shapeCell(kind)
                     }
                 }
 
-                Text("OUTLINE").font(.caption.weight(.semibold)).foregroundStyle(Theme.mutedInk)
+                Text("ĐƯỜNG VIỀN").font(.caption.weight(.semibold)).foregroundStyle(Theme.mutedInk)
                 VStack(spacing: 12) {
                     HStack {
                         ColorPicker("Stroke color", selection: $vm.color, supportsOpacity: true)
                     }
                     HStack(spacing: 12) {
-                        Text("Width").font(.subheadline).foregroundStyle(Theme.ink)
+                        Text("Độ dày").font(.subheadline).foregroundStyle(Theme.ink)
                         Slider(value: $vm.shapeStrokeWidth, in: 1...40)
                         Text("\(Int(vm.shapeStrokeWidth)) pt").font(.subheadline.monospacedDigit())
                             .foregroundStyle(Theme.ink).frame(width: 46, alignment: .trailing)
@@ -52,10 +52,10 @@ struct ShapesPickerContent: View {
                 .padding(.horizontal, 14).padding(.vertical, 12)
                 .background(Theme.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
-                Text("FILL").font(.caption.weight(.semibold)).foregroundStyle(Theme.mutedInk)
+                Text("TÔ NỀN").font(.caption.weight(.semibold)).foregroundStyle(Theme.mutedInk)
                 VStack(spacing: 12) {
                     Toggle(isOn: $vm.shapeFillEnabled) {
-                        Text("Fill shape").font(.subheadline).foregroundStyle(Theme.ink)
+                        Text("Tô nền hình").font(.subheadline).foregroundStyle(Theme.ink)
                     }
                     .tint(Theme.primary)
                     if vm.shapeFillEnabled {
@@ -67,7 +67,7 @@ struct ShapesPickerContent: View {
                 .opacity(vm.shapeKind.canFill ? 1 : 0.4)
                 .disabled(!vm.shapeKind.canFill)
 
-                Text("Drag on the canvas to place the shape, then rotate, resize or flip with the handles.")
+                Text("Kéo trên khung vẽ để đặt hình, rồi xoay, đổi cỡ hoặc lật bằng các núm.")
                     .font(.caption).foregroundStyle(Theme.mutedInk)
             }
             .padding(16)

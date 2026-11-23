@@ -1,3 +1,33 @@
+# Vẽ Tranh — app vẽ cho iPad (CTXĐN)
+
+Phát triển từ [Sketchbook Studio](https://github.com/alfredang/sketchbookapp) (giấy phép MIT,
+© Tertiary Infotech Academy Pte Ltd). Bản này do Chi nhánh Toa xe Đà Nẵng bổ sung:
+
+- **Giao diện tiếng Việt**, tên app "Vẽ Tranh", Bundle ID `vn.ctxdn.vetranh`.
+- **Vẽ kỹ thuật**: mẫu giấy *Lưới mm* và *Khung bản vẽ* (viền + khung tên), khổ **A3**,
+  hình **Ghi kích thước** (2 mũi tên + số mm, hiện số đo khi kéo). Khổ A4/A3 vẽ ở 200 dpi:
+  1 mm = 7,876 px, tỉ lệ 1:1 khi in.
+- **Xuất & chia sẻ**: PDF cả sổ (đúng khổ giấy), PNG trang này hoặc tất cả trang (••• → Xuất & chia sẻ).
+- **Ghi chú lên PDF / ảnh**: Thư viện → + → *Ghi chú lên PDF* (tối đa 30 trang) hoặc *Ghi chú lên ảnh*.
+  Mỗi trang có lớp nền khoá và lớp "Ghi chú"; xuất PDF ra bản đã chú thích.
+- **Tô màu cho bé**: 6 tranh nét (tàu hoả, ngôi nhà, bông hoa, con cá, trời nắng, con bướm);
+  chọn công cụ Đổ màu rồi chạm vào từng vùng.
+
+## Build không cần Mac
+
+Mỗi lần đẩy code, GitHub Actions (`.github/workflows/build.yml`) build trên macOS và đính kèm
+file **VeTranh-unsigned.ipa** ở mục *Actions → lần chạy → Artifacts*.
+
+Cài lên iPad từ Windows: tải Sideloadly → cắm iPad → kéo file .ipa vào → đăng nhập Apple ID → Start.
+Với Apple ID miễn phí, app hết hạn sau 7 ngày (cài lại để gia hạn) và iCloud không hoạt động
+(app tự lưu trên máy). Muốn phát hành TestFlight/App Store cần tài khoản Apple Developer
+(99 USD/năm) và điền `DEVELOPMENT_TEAM` trong `project.yml`.
+
+> Ghi chú: UI test gốc (`SketchbookUITests`) tìm nút theo nhãn tiếng Anh nên cần cập nhật
+> trước khi chạy lại; CI hiện chỉ kiểm tra biên dịch.
+
+---
+
 # Sketchbook
 
 A natural drawing studio for **iPad & iPhone** — sketch with pressure-sensitive brushes and Apple Pencil (or finger), work in **multi-page** sketchbooks and layers, trace reference photos, use symmetry and rulers, fill with color, apply filter effects, and bring your art into the real world with **AR**. Everything syncs to your personal **iCloud**.

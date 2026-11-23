@@ -3,9 +3,13 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleDevelopmentRegion</key>
-    <string>en</string>
+    <string>vi</string>
+    <key>CFBundleLocalizations</key>
+    <array>
+        <string>vi</string>
+    </array>
     <key>CFBundleDisplayName</key>
-    <string>Sketchbook Studio</string>
+    <string>Vẽ Tranh</string>
     <key>CFBundleIconName</key>
     <string>AppIcon</string>
     <key>ITSAppUsesNonExemptEncryption</key>
@@ -45,9 +49,9 @@
         <string>arm64</string>
     </array>
     <key>NSPhotoLibraryUsageDescription</key>
-    <string>Import a reference photo to trace and overlay while you sketch.</string>
+    <string>Chọn ảnh để chèn, đồ lại hoặc ghi chú lên ảnh.</string>
     <key>NSCameraUsageDescription</key>
-    <string>Place your finished sketch into the real world as an AR effect using the camera.</string>
+    <string>Dùng camera để đặt bức tranh vào không gian thật (AR).</string>
     <key>UISupportedInterfaceOrientations</key>
     <array>
         <string>UIInterfaceOrientationPortrait</string>

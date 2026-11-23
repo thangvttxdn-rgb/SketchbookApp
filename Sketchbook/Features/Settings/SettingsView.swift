@@ -16,7 +16,13 @@ enum SettingsKey {
 enum AppTheme: String, CaseIterable, Identifiable {
     case light, dark, system
     var id: String { rawValue }
-    var title: String { rawValue.capitalized }
+    var title: String {
+        switch self {
+        case .light: return "Sáng"
+        case .dark: return "Tối"
+        case .system: return "Theo hệ thống"
+        }
+    }
     var colorScheme: ColorScheme? {
         switch self {
         case .light: return .light
@@ -42,7 +48,7 @@ struct SettingsView: View {
     @AppStorage(SettingsKey.defaultPencilGrade) private var defaultPencilGrade = PencilGrade.hb.rawValue
     @AppStorage(SettingsKey.defaultEraseSize) private var defaultEraseSize = 24.0
 
-    private let developerURL = URL(string: "https://www.tertiaryinfotech.com")!
+    private let developerURL = URL(string: "https://github.com/alfredang/sketchbookapp")!
     private var versionString: String {
         let i = Bundle.main.infoDictionary
         let s = i?["CFBundleShortVersionString"] as? String ?? "1.0"
@@ -53,63 +59,63 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Appearance") {
-                    Picker("Theme", selection: $theme) {
+                Section("Giao diện") {
+                    Picker("Chủ đề", selection: $theme) {
                         ForEach(AppTheme.allCases) { Text($0.title).tag($0.rawValue) }
                     }
                 }
 
-                Section("Drawing") {
-                    Toggle("Finger Drawing", isOn: $fingerDrawing)
+                Section("Vẽ") {
+                    Toggle("Vẽ bằng ngón tay", isOn: $fingerDrawing)
                     HStack {
-                        Label("Palm Rejection", systemImage: "hand.raised.fill")
+                        Label("Chống chạm lòng bàn tay", systemImage: "hand.raised.fill")
                         Spacer()
-                        Text("Always On").foregroundStyle(Theme.mutedInk)
+                        Text("Luôn bật").foregroundStyle(Theme.mutedInk)
                     }
-                    Toggle("Haptic Feedback", isOn: $haptics)
+                    Toggle("Rung phản hồi", isOn: $haptics)
                 }
 
-                Section("Tool Defaults") {
-                    Picker("Brush", selection: $defaultBrush) {
+                Section("Mặc định công cụ") {
+                    Picker("Cọ", selection: $defaultBrush) {
                         ForEach(BrushType.allCases) { Text($0.title).tag($0.rawValue) }
                     }
-                    Picker("Pencil Grade", selection: $defaultPencilGrade) {
+                    Picker("Độ cứng bút chì", selection: $defaultPencilGrade) {
                         ForEach(PencilGrade.allCases) { Text($0.title).tag($0.rawValue) }
                     }
                     VStack(alignment: .leading) {
-                        Text("Eraser Size: \(Int(defaultEraseSize)) pt")
+                        Text("Cỡ tẩy: \(Int(defaultEraseSize)) pt")
                             .font(.caption).foregroundStyle(Theme.mutedInk)
                         Slider(value: $defaultEraseSize, in: 6...80)
                     }
                 }
 
-                Section("New Sketch Defaults") {
-                    Picker("Template", selection: $defaultTemplate) {
+                Section("Mặc định bản vẽ mới") {
+                    Picker("Mẫu giấy", selection: $defaultTemplate) {
                         ForEach(TemplateKind.allCases) { Text($0.title).tag($0.rawValue) }
                     }
-                    Toggle("Landscape", isOn: $defaultLandscape)
+                    Toggle("Khổ ngang", isOn: $defaultLandscape)
                 }
 
-                Section("Storage") {
+                Section("Lưu trữ") {
                     HStack {
-                        Label(store.usingICloud ? "iCloud" : "On this device",
+                        Label(store.usingICloud ? "iCloud" : "Trên máy này",
                               systemImage: store.usingICloud ? "icloud.fill" : "internaldrive")
                         Spacer()
-                        Text(store.usingICloud ? "Synced" : "Local").foregroundStyle(Theme.mutedInk)
+                        Text(store.usingICloud ? "Đã đồng bộ" : "Cục bộ").foregroundStyle(Theme.mutedInk)
                     }
                 }
 
-                Section("About") {
+                Section("Giới thiệu") {
                     Link(destination: developerURL) {
-                        Label("Tertiary Infotech Academy", systemImage: "globe")
+                        Label("Mã nguồn gốc (MIT)", systemImage: "globe")
                     }
-                    HStack { Text("Version"); Spacer(); Text(versionString).foregroundStyle(Theme.mutedInk) }
+                    HStack { Text("Phiên bản"); Spacer(); Text(versionString).foregroundStyle(Theme.mutedInk) }
                 }
             }
-            .navigationTitle("Settings")
+            .navigationTitle("Cài đặt")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) { Button("Xong") { dismiss() } }
             }
         }
     }

@@ -23,6 +23,8 @@ struct EditorView: View {
     @State private var showFileImporter = false
     @State private var showAdjustments = false
     @State private var arImage: UIImage?
+    @State private var exported: ExportedFiles?
+    @State private var exportError: String?
     @StateObject private var canvasHandle = CanvasHandle()
     @ObservedObject private var orientation = OrientationManager.shared
     @Environment(\.horizontalSizeClass) private var hSize
@@ -141,6 +143,15 @@ struct EditorView: View {
                 vm.insertImage(image)
             }
         }
+        .sheet(item: $exported) { files in
+            ShareSheet(items: files.urls)
+        }
+        .alert("Không xuất được file", isPresented: Binding(get: { exportError != nil },
+                                                           set: { if !$0 { exportError = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(exportError ?? "")
+        }
         .fullScreenCover(item: Binding(get: { arImage.map { ARImageBox(image: $0) } },
                                        set: { arImage = $0?.image })) { box in
             ARSketchScreen(image: box.image)
@@ -159,7 +170,7 @@ struct EditorView: View {
                 .frame(maxHeight: .infinity)
                 .background(Theme.surface)
         }
-        .help("Show pages")
+        .help("Hiện trang")
         .accessibilityLabel("Show pages")
         .overlay(Divider(), alignment: .trailing)
     }
@@ -176,7 +187,7 @@ struct EditorView: View {
                 .frame(maxHeight: .infinity)
                 .background(Theme.surface)
         }
-        .help("Show panel")
+        .help("Hiện bảng công cụ")
         .accessibilityLabel("Show panel")
         .overlay(Divider(), alignment: .leading)
     }
@@ -193,7 +204,7 @@ struct EditorView: View {
             .accessibilityIdentifier("prevPage")
             .accessibilityLabel("Previous page")
 
-            Text("Page \(vm.currentPage + 1) / \(vm.pageCount)")
+            Text("Trang \(vm.currentPage + 1) / \(vm.pageCount)")
                 .font(.subheadline.weight(.medium).monospacedDigit())
                 .foregroundStyle(Theme.ink)
                 .frame(minWidth: 92)
@@ -222,35 +233,35 @@ struct EditorView: View {
     /// for "all" are confirmed before running.
     private var pagesMenu: some View {
         Menu {
-            Button { vm.addPageBefore() } label: { Label("Add Page Before", systemImage: "arrow.up.to.line") }
-            Button { vm.addPageAfter() } label: { Label("Add Page After", systemImage: "arrow.down.to.line") }
+            Button { vm.addPageBefore() } label: { Label("Thêm trang phía trước", systemImage: "arrow.up.to.line") }
+            Button { vm.addPageAfter() } label: { Label("Thêm trang phía sau", systemImage: "arrow.down.to.line") }
             Divider()
-            Button { vm.clearCurrentPage() } label: { Label("Clear Current Page", systemImage: "eraser") }
-            Button { confirm = .clearAll } label: { Label("Clear All Pages", systemImage: "eraser.line.dashed") }
+            Button { vm.clearCurrentPage() } label: { Label("Xoá nét trang này", systemImage: "eraser") }
+            Button { confirm = .clearAll } label: { Label("Xoá nét tất cả trang", systemImage: "eraser.line.dashed") }
             Divider()
             Button(role: .destructive) { vm.deleteCurrentPage() } label: {
-                Label("Delete Current Page", systemImage: "trash")
+                Label("Xoá trang này", systemImage: "trash")
             }
             Button(role: .destructive) { confirm = .deleteAll } label: {
-                Label("Delete All Pages", systemImage: "trash.slash")
+                Label("Xoá tất cả trang", systemImage: "trash.slash")
             }
         } label: {
             Image(systemName: "square.stack.3d.up")
         }
         .accessibilityIdentifier("pagesMenu")
         .accessibilityLabel("Pages")
-        .confirmationDialog("This affects every page in the sketchbook.",
+        .confirmationDialog("Thao tác này ảnh hưởng mọi trang trong sổ.",
                             isPresented: Binding(get: { confirm != nil }, set: { if !$0 { confirm = nil } }),
                             titleVisibility: .visible) {
             switch confirm {
             case .clearAll:
-                Button("Clear All Pages", role: .destructive) { vm.clearAllPages() }
+                Button("Xoá nét tất cả trang", role: .destructive) { vm.clearAllPages() }
             case .deleteAll:
-                Button("Delete All Pages", role: .destructive) { vm.deleteAllPages() }
+                Button("Xoá tất cả trang", role: .destructive) { vm.deleteAllPages() }
             case nil:
                 EmptyView()
             }
-            Button("Cancel", role: .cancel) {}
+            Button("Huỷ", role: .cancel) {}
         }
     }
 
@@ -354,7 +365,7 @@ struct EditorView: View {
             .background(vm.toolMode == .draw ? Theme.primary : .clear,
                         in: RoundedRectangle(cornerRadius: 11, style: .continuous))
         }
-        .help("Brushes")
+        .help("Cọ vẽ")
         .accessibilityLabel("Brushes")
     }
 
@@ -372,7 +383,7 @@ struct EditorView: View {
             .background(vm.toolMode == .erase ? Theme.primary : .clear,
                         in: RoundedRectangle(cornerRadius: 11, style: .continuous))
         }
-        .help("Eraser")
+        .help("Tẩy")
         .accessibilityLabel("Eraser")
     }
 
@@ -391,7 +402,7 @@ struct EditorView: View {
             .background(vm.toolMode == .shape ? Theme.primary : .clear,
                         in: RoundedRectangle(cornerRadius: 11, style: .continuous))
         }
-        .help("Shapes")
+        .help("Hình")
         .accessibilityLabel("Shapes")
     }
 
@@ -408,7 +419,7 @@ struct EditorView: View {
                 .frame(minWidth: 44, minHeight: 44)
                 .contentShape(Rectangle())
         }
-        .help("Grid & Template")
+        .help("Lưới & mẫu giấy")
         .accessibilityLabel("Grid")
     }
 
@@ -416,20 +427,20 @@ struct EditorView: View {
     private var transformMenuButton: some View {
         Menu {
             Button { vm.flipHorizontal() } label: {
-                Label("Flip Horizontal", systemImage: "arrow.left.and.right.righttriangle.left.righttriangle.right")
+                Label("Lật ngang", systemImage: "arrow.left.and.right.righttriangle.left.righttriangle.right")
             }
             Button { vm.flipVertical() } label: {
-                Label("Flip Vertical", systemImage: "arrow.up.and.down.righttriangle.up.righttriangle.down")
+                Label("Lật dọc", systemImage: "arrow.up.and.down.righttriangle.up.righttriangle.down")
             }
             Button { canvasHandle.resetZoom() } label: {
-                Label("Fit to Canvas", systemImage: "arrow.up.left.and.down.right.magnifyingglass")
+                Label("Vừa khung", systemImage: "arrow.up.left.and.down.right.magnifyingglass")
             }
         } label: {
             Image(systemName: "crop.rotate")
                 .frame(minWidth: 44, minHeight: 44)
                 .contentShape(Rectangle())
         }
-        .help("Transform")
+        .help("Biến đổi")
         .accessibilityLabel("Transform")
     }
 
@@ -451,7 +462,7 @@ struct EditorView: View {
             .background(vm.toolMode == .fill ? Theme.primary : .clear,
                         in: RoundedRectangle(cornerRadius: 11, style: .continuous))
         }
-        .help("Fill")
+        .help("Đổ màu")
         .accessibilityLabel("Fill")
         .popover(isPresented: $showFillColor) { fillColorPopover }
     }
@@ -473,7 +484,7 @@ struct EditorView: View {
                     }
                 }
             }
-            Text("Tap a shape or an enclosed area to fill it.")
+            Text("Chạm vào hình hoặc vùng kín để đổ màu.")
                 .font(.caption).foregroundStyle(Theme.mutedInk)
         }
         .padding(14).frame(width: 300)
@@ -491,7 +502,7 @@ struct EditorView: View {
                 .background(vm.fingerDrawingEnabled ? Theme.primary : .clear,
                             in: RoundedRectangle(cornerRadius: 11, style: .continuous))
         }
-        .help(vm.fingerDrawingEnabled ? "Finger drawing on" : "Finger drawing off (Pencil only)")
+        .help(vm.fingerDrawingEnabled ? "Đang vẽ bằng ngón tay" : "Chỉ vẽ bằng Pencil")
         .accessibilityLabel("Finger drawing")
     }
 
@@ -506,49 +517,73 @@ struct EditorView: View {
         .accessibilityLabel(mode.title)
     }
 
+    /// Xuất file rồi mở bảng Chia sẻ; lỗi ghi file được báo bằng hộp thoại.
+    private func export(_ make: () throws -> [URL]) {
+        do {
+            exported = ExportedFiles(urls: try make())
+        } catch {
+            exportError = error.localizedDescription
+        }
+    }
+
     /// Occasional actions grouped into an overflow menu to keep the bar uncluttered.
     private var overflowMenu: some View {
         Menu {
             guidesMenuContent
             Divider()
             Button { vm.setFingerDrawing(!vm.fingerDrawingEnabled) } label: {
-                Label(vm.fingerDrawingEnabled ? "Finger Drawing: On" : "Finger Drawing: Off",
+                Label(vm.fingerDrawingEnabled ? "Vẽ bằng ngón tay: Bật" : "Vẽ bằng ngón tay: Tắt",
                       systemImage: vm.fingerDrawingEnabled ? "hand.draw.fill" : "hand.draw")
             }
             orientationMenuContent
             Menu {
                 Button { photoTarget = .insert; showPhotoPicker = true } label: {
-                    Label("Insert a Photo", systemImage: "photo")
+                    Label("Chèn ảnh", systemImage: "photo")
                 }
                 Button { showFileImporter = true } label: {
-                    Label("Insert a File", systemImage: "folder")
+                    Label("Chèn tệp ảnh", systemImage: "folder")
                 }
                 Divider()
                 Button { photoTarget = .reference; showPhotoPicker = true } label: {
-                    Label("Import Reference Photo", systemImage: "photo.on.rectangle.angled")
+                    Label("Ảnh mẫu để đồ lại", systemImage: "photo.on.rectangle.angled")
                 }
             } label: {
-                Label("Add Image", systemImage: "plus.square.on.square")
+                Label("Thêm ảnh", systemImage: "plus.square.on.square")
+            }
+            Menu {
+                Button { export { try [ExportRenderer.pdf(vm.document)] } } label: {
+                    Label("PDF – cả sổ (\(vm.pageCount) trang)", systemImage: "doc.richtext")
+                }
+                Button { export { try ExportRenderer.pngs(vm.document, pages: [vm.currentPage]) } } label: {
+                    Label("Ảnh PNG – trang này", systemImage: "photo")
+                }
+                if vm.pageCount > 1 {
+                    Button { export { try ExportRenderer.pngs(vm.document) } } label: {
+                        Label("Ảnh PNG – tất cả trang", systemImage: "photo.stack")
+                    }
+                }
+            } label: {
+                Label("Xuất & chia sẻ", systemImage: "square.and.arrow.up")
             }
             Button { arImage = vm.exportedImage() } label: {
-                Label("View in AR", systemImage: "arkit")
+                Label("Xem bằng AR", systemImage: "arkit")
             }
             Button { vm.save() } label: {
-                Label("Save", systemImage: "icloud.and.arrow.up")
+                Label("Lưu", systemImage: "icloud.and.arrow.up")
             }
         } label: {
             Image(systemName: "ellipsis.circle")
                 .frame(minWidth: 44, minHeight: 44)
                 .contentShape(Rectangle())
         }
-        .help("More")
+        .help("Thêm")
         .accessibilityLabel("More options")
     }
 
     private var widthPopover: some View {
         VStack(alignment: .leading, spacing: 10) {
             if vm.toolMode == .erase {
-                Text("Eraser Size: \(Int(vm.eraseWidth)) pt").font(.subheadline)
+                Text("Cỡ tẩy: \(Int(vm.eraseWidth)) pt").font(.subheadline)
                 HStack(spacing: 12) {
                     Slider(value: $vm.eraseWidth, in: 4...120)
                     Circle()
@@ -559,7 +594,7 @@ struct EditorView: View {
                         .frame(width: 44, height: 44)
                 }
             } else {
-                Text("Brush Size: \(Int(vm.width))").font(.subheadline)
+                Text("Cỡ cọ: \(Int(vm.width))").font(.subheadline)
                 Slider(value: $vm.width, in: 1...60)
             }
         }
@@ -570,14 +605,14 @@ struct EditorView: View {
     /// the overflow menu so the top bar stays uncluttered.
     @ViewBuilder
     private var guidesMenuContent: some View {
-        Menu("Guides & Effects") {
+        Menu("Hướng dẫn & hiệu ứng") {
             Button {
                 vm.isRulerActive.toggle()
             } label: {
-                Label("Ruler", systemImage: vm.isRulerActive ? "checkmark" : "ruler")
+                Label("Thước kẻ", systemImage: vm.isRulerActive ? "checkmark" : "ruler")
             }
 
-            Menu("Symmetry") {
+            Menu("Đối xứng") {
                 ForEach(SymmetryMode.allCases) { mode in
                     Button { vm.symmetry = mode } label: {
                         Label(mode.title, systemImage: vm.symmetry == mode ? "checkmark" : mode.systemImage)
@@ -585,7 +620,7 @@ struct EditorView: View {
                 }
             }
 
-            Menu("Drawing Guide") {
+            Menu("Đường dựng hình") {
                 ForEach(PerspectiveGuide.allCases) { g in
                     Button { vm.perspective = g } label: {
                         Label(g.title, systemImage: vm.perspective == g ? "checkmark" : "skew")
@@ -593,19 +628,19 @@ struct EditorView: View {
                 }
             }
 
-            Menu("Filter Effect") {
+            Menu("Hiệu ứng lọc") {
                 ForEach(SketchFilter.photo) { f in
                     Button { vm.applyFilter(f) } label: { Text(f.title) }
                 }
             }
 
-            Menu("Painting Style") {
+            Menu("Phong cách hội hoạ") {
                 ForEach(SketchFilter.painting) { f in
                     Button { vm.applyFilter(f) } label: { Text(f.title) }
                 }
             }
 
-            Menu("Distort & Blur") {
+            Menu("Biến dạng & làm mờ") {
                 ForEach(SketchFilter.distort) { f in
                     Button { vm.applyFilter(f) } label: { Text(f.title) }
                 }
@@ -616,15 +651,15 @@ struct EditorView: View {
     /// Auto / Portrait / Landscape orientation lock.
     @ViewBuilder
     private var orientationMenuContent: some View {
-        Menu("Orientation") {
+        Menu("Hướng màn hình") {
             Button { orientation.unlock() } label: {
-                Label("Auto", systemImage: !orientation.isLocked ? "checkmark" : "rotate.right")
+                Label("Tự động", systemImage: !orientation.isLocked ? "checkmark" : "rotate.right")
             }
             Button { orientation.lock(to: .portrait) } label: {
-                Label("Portrait", systemImage: orientation.isPortraitLocked ? "checkmark" : "rectangle.portrait")
+                Label("Dọc", systemImage: orientation.isPortraitLocked ? "checkmark" : "rectangle.portrait")
             }
             Button { orientation.lock(to: .landscape) } label: {
-                Label("Landscape", systemImage: orientation.isLandscapeLocked ? "checkmark" : "rectangle")
+                Label("Khổ ngang", systemImage: orientation.isLandscapeLocked ? "checkmark" : "rectangle")
             }
         }
     }

@@ -10,10 +10,10 @@ enum SymmetryMode: String, CaseIterable, Codable, Identifiable {
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .off: return "Off"
-        case .vertical: return "Vertical"
-        case .horizontal: return "Horizontal"
-        case .quad: return "Quad"
+        case .off: return "Tắt"
+        case .vertical: return "Dọc"
+        case .horizontal: return "Ngang"
+        case .quad: return "Bốn phần"
         }
     }
     var systemImage: String {

@@ -28,6 +28,10 @@ enum TemplateRenderer {
                 drawMusicStaff(c, size: size, color: line)
             case .ringFile:
                 drawRingFile(c, size: size, line: line, accent: accent)
+            case .mmGrid:
+                TechnicalDrawing.drawMMGrid(c, size: size)
+            case .drawingFrame:
+                TechnicalDrawing.drawFrame(c, size: size)
             }
         }
     }

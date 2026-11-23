@@ -17,21 +17,23 @@ enum ShapeKind: String, CaseIterable, Identifiable, Codable {
     case arrow
     case heart
     case line
+    case dimension   // vẽ kỹ thuật: đường ghi kích thước (2 mũi tên + số mm)
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .rectangle: return "Rectangle"
-        case .ellipse: return "Circle"
-        case .triangle: return "Triangle"
-        case .diamond: return "Diamond"
-        case .star: return "Star"
-        case .pentagon: return "Pentagon"
-        case .hexagon: return "Hexagon"
-        case .arrow: return "Arrow"
-        case .heart: return "Heart"
-        case .line: return "Line"
+        case .rectangle: return "Hình chữ nhật"
+        case .ellipse: return "Hình tròn"
+        case .triangle: return "Tam giác"
+        case .diamond: return "Hình thoi"
+        case .star: return "Ngôi sao"
+        case .pentagon: return "Ngũ giác"
+        case .hexagon: return "Lục giác"
+        case .arrow: return "Mũi tên"
+        case .heart: return "Trái tim"
+        case .line: return "Đoạn thẳng"
+        case .dimension: return "Ghi kích thước"
         }
     }
 
@@ -47,11 +49,15 @@ enum ShapeKind: String, CaseIterable, Identifiable, Codable {
         case .arrow: return "arrow.right"
         case .heart: return "heart"
         case .line: return "line.diagonal"
+        case .dimension: return "ruler"
         }
     }
 
     /// A closed outline can take a solid fill; an open line cannot.
-    var canFill: Bool { self != .line }
+    var canFill: Bool { !isLinear }
+
+    /// Open, two-point kinds drawn along the bounding-rect diagonal.
+    var isLinear: Bool { self == .line || self == .dimension }
 }
 
 /// A vector shape already baked into a layer, kept alongside the strokes so the

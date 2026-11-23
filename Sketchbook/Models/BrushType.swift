@@ -33,9 +33,9 @@ enum BrushType: String, CaseIterable, Codable, Identifiable {
     var id: String { rawValue }
 
     enum Category: String, CaseIterable, Identifiable {
-        case inking = "Inking"
-        case sketching = "Sketching"
-        case painting = "Painting"
+        case inking = "Mực"
+        case sketching = "Phác thảo"
+        case painting = "Vẽ màu"
         var id: String { rawValue }
     }
 
@@ -52,26 +52,26 @@ enum BrushType: String, CaseIterable, Codable, Identifiable {
 
     var title: String {
         switch self {
-        case .pen: return "Studio Pen"
-        case .fountain: return "Fountain Pen"
-        case .monoline: return "Monoline"
-        case .technical: return "Technical Pen"
-        case .gel: return "Gel Pen"
-        case .brushPen: return "Brush Pen"
-        case .pencil: return "Pencil"
-        case .charcoal: return "Charcoal"
-        case .crayon: return "Crayon"
-        case .chalk: return "Chalk"
-        case .pastel: return "Soft Pastel"
-        case .marker: return "Marker"
-        case .highlighter: return "Highlighter"
-        case .oil: return "Oil Paint"
-        case .gouache: return "Gouache"
-        case .acrylic: return "Acrylic"
-        case .watercolor: return "Watercolor"
-        case .airbrush: return "Airbrush"
-        case .ink: return "Ink Bleed"
-        case .stardust: return "Stardust"
+        case .pen: return "Bút studio"
+        case .fountain: return "Bút máy"
+        case .monoline: return "Nét đều"
+        case .technical: return "Bút kỹ thuật"
+        case .gel: return "Bút gel"
+        case .brushPen: return "Bút lông"
+        case .pencil: return "Bút chì"
+        case .charcoal: return "Than vẽ"
+        case .crayon: return "Sáp màu"
+        case .chalk: return "Phấn"
+        case .pastel: return "Phấn tiên"
+        case .marker: return "Bút dạ"
+        case .highlighter: return "Bút dạ quang"
+        case .oil: return "Sơn dầu"
+        case .gouache: return "Màu bột"
+        case .acrylic: return "Màu acrylic"
+        case .watercolor: return "Màu nước"
+        case .airbrush: return "Phun màu"
+        case .ink: return "Mực loang"
+        case .stardust: return "Bụi sao"
         }
     }
 

@@ -22,19 +22,19 @@ enum SketchFilter: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .none: return "Original"
-        case .mono: return "Mono"
-        case .sepia: return "Sepia"
-        case .vibrant: return "Vibrant"
-        case .invert: return "Invert"
-        case .comic: return "Comic"
-        case .blur: return "Soft Blur"
-        case .oil: return "Oil Painting"
-        case .watercolor: return "Watercolor"
-        case .pointillism: return "Pointillism"
-        case .mosaic: return "Mosaic"
-        case .motionBlur: return "Motion Blur"
-        case .liquify: return "Liquify"
+        case .none: return "Gốc"
+        case .mono: return "Đen trắng"
+        case .sepia: return "Nâu cổ điển"
+        case .vibrant: return "Rực rỡ"
+        case .invert: return "Đảo màu"
+        case .comic: return "Truyện tranh"
+        case .blur: return "Mờ nhẹ"
+        case .oil: return "Tranh sơn dầu"
+        case .watercolor: return "Màu nước"
+        case .pointillism: return "Chấm điểm"
+        case .mosaic: return "Khảm"
+        case .motionBlur: return "Mờ chuyển động"
+        case .liquify: return "Hoá lỏng"
         }
     }
 

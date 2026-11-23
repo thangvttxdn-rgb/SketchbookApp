@@ -40,9 +40,9 @@ struct PagesSidebar: View {
                     .frame(width: 36, height: 40)
                     .contentShape(Rectangle())
             }
-            .help("Hide pages")
+            .help("Ẩn trang")
             .accessibilityLabel("Hide pages")
-            Text("Pages").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
+            Text("Trang").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
             Spacer()
             Button { vm.addPageAfter() } label: {
                 Image(systemName: "plus")
@@ -50,7 +50,7 @@ struct PagesSidebar: View {
                     .frame(width: 36, height: 40)
                     .contentShape(Rectangle())
             }
-            .help("Add page")
+            .help("Thêm trang")
             .accessibilityLabel("Add page")
         }
         .padding(.horizontal, 8)

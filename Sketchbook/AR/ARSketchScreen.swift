@@ -9,7 +9,7 @@ struct ARSketchScreen: View {
             ARSketchView(image: image)
                 .ignoresSafeArea()
             VStack(spacing: 8) {
-                Text("Tap a surface to place your sketch")
+                Text("Chạm vào một bề mặt để đặt tranh")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 16).padding(.vertical, 10)

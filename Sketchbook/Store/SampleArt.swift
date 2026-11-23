@@ -69,7 +69,7 @@ enum SampleArt {
                                draw: (UIGraphicsImageRendererContext, CGSize) -> Void) -> SketchDocument {
         var doc = SketchDocument(title: title, template: template, size: size)
         let art = UIGraphicsImageRenderer(size: size).image { ctx in draw(ctx, size) }
-        doc.layers = [Layer(name: "Layer 1", imageData: art.pngData())]
+        doc.layers = [Layer(name: "Lớp 1", imageData: art.pngData())]
         doc.activeLayerIndex = 0
         doc.thumbnailData = LayerCompositor.thumbnail(doc).pngData()
         return doc

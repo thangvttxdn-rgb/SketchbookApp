@@ -6,7 +6,7 @@ struct NewSketchSheet: View {
 
     @AppStorage(SettingsKey.defaultTemplate) private var defaultTemplate = TemplateKind.blank.rawValue
     @AppStorage(SettingsKey.defaultLandscape) private var defaultLandscape = true
-    @State private var title = "Untitled"
+    @State private var title = "Chưa đặt tên"
     @State private var template: TemplateKind = .blank
     @State private var landscape = true
     @State private var preset: CanvasPreset = .standard
@@ -19,10 +19,10 @@ struct NewSketchSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    TextField("Title", text: $title).textFieldStyle(.roundedBorder)
-                    Toggle("Landscape", isOn: $landscape)
+                    TextField("Tiêu đề", text: $title).textFieldStyle(.roundedBorder)
+                    Toggle("Khổ ngang", isOn: $landscape)
 
-                    Text("CANVAS SIZE").font(.caption.weight(.semibold)).foregroundStyle(Theme.mutedInk)
+                    Text("KHỔ GIẤY").font(.caption.weight(.semibold)).foregroundStyle(Theme.mutedInk)
                     LazyVGrid(columns: sizeColumns, spacing: 14) {
                         ForEach(CanvasPreset.allCases) { p in
                             CanvasSizeChip(preset: p, landscape: landscape, isSelected: preset == p)
@@ -30,7 +30,7 @@ struct NewSketchSheet: View {
                         }
                     }
 
-                    Text("PAPER").font(.caption.weight(.semibold)).foregroundStyle(Theme.mutedInk)
+                    Text("MÀU GIẤY").font(.caption.weight(.semibold)).foregroundStyle(Theme.mutedInk)
                     HStack(spacing: 14) {
                         ForEach(PaperColor.allCases) { c in
                             PaperChip(paper: c, isSelected: paper == c)
@@ -38,7 +38,7 @@ struct NewSketchSheet: View {
                         }
                     }
 
-                    Text("TEMPLATE").font(.caption.weight(.semibold)).foregroundStyle(Theme.mutedInk)
+                    Text("MẪU GIẤY").font(.caption.weight(.semibold)).foregroundStyle(Theme.mutedInk)
                     LazyVGrid(columns: columns, spacing: 14) {
                         ForEach(TemplateKind.allCases) { kind in
                             TemplateChip(kind: kind, isSelected: template == kind)
@@ -49,7 +49,7 @@ struct NewSketchSheet: View {
                 .padding(20)
             }
             .background(Theme.background.ignoresSafeArea())
-            .navigationTitle("New Sketch")
+            .navigationTitle("Bản vẽ mới")
             .navigationBarTitleDisplayMode(.inline)
             .onAppear {
                 template = TemplateKind(rawValue: defaultTemplate) ?? .blank
@@ -57,12 +57,12 @@ struct NewSketchSheet: View {
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button("Huỷ") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Create") {
+                    Button("Tạo") {
                         let size = preset.size(landscape: landscape)
-                        let doc = SketchDocument(title: title.isEmpty ? "Untitled" : title,
+                        let doc = SketchDocument(title: title.isEmpty ? "Chưa đặt tên" : title,
                                                  template: template, size: size,
                                                  backgroundHex: paper.hex)
                         onCreate(doc)

@@ -10,19 +10,23 @@ enum TemplateKind: String, CaseIterable, Codable, Identifiable {
     case isometric
     case storyboard
     case musicStaff
+    case mmGrid        // vẽ kỹ thuật: lưới milimét
+    case drawingFrame  // vẽ kỹ thuật: khung bản vẽ + khung tên
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .blank: return "Blank"
-        case .ringFile: return "Ring File"
-        case .ruled: return "Ruled"
-        case .grid: return "Grid"
-        case .dotGrid: return "Dot Grid"
-        case .isometric: return "Isometric"
-        case .storyboard: return "Storyboard"
-        case .musicStaff: return "Music Staff"
+        case .blank: return "Trắng"
+        case .ringFile: return "Giấy còng"
+        case .ruled: return "Kẻ dòng"
+        case .grid: return "Ô vuông"
+        case .dotGrid: return "Lưới chấm"
+        case .isometric: return "Trục đo"
+        case .storyboard: return "Phân cảnh"
+        case .musicStaff: return "Khuông nhạc"
+        case .mmGrid: return "Lưới mm"
+        case .drawingFrame: return "Khung bản vẽ"
         }
     }
 
@@ -36,6 +40,8 @@ enum TemplateKind: String, CaseIterable, Codable, Identifiable {
         case .isometric: return "cube"
         case .storyboard: return "rectangle.split.3x3"
         case .musicStaff: return "music.note.list"
+        case .mmGrid: return "squareshape.split.3x3"
+        case .drawingFrame: return "doc.richtext"
         }
     }
 }

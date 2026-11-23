@@ -14,15 +14,15 @@ struct AdjustmentsPanel: View {
     var body: some View {
         NavigationStack(path: $path) {
             List {
-                section("Colour", SketchAdjustment.color)
-                section("Blur", SketchAdjustment.blur)
-                section("Stylize", SketchAdjustment.stylize)
+                section("Màu sắc", SketchAdjustment.color)
+                section("Làm mờ", SketchAdjustment.blur)
+                section("Cách điệu", SketchAdjustment.stylize)
             }
-            .navigationTitle("Adjustments")
+            .navigationTitle("Điều chỉnh")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 if !embedded {
-                    ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
+                    ToolbarItem(placement: .cancellationAction) { Button("Xong") { dismiss() } }
                 }
             }
             .navigationDestination(for: SketchAdjustment.self) { adj in
@@ -66,14 +66,14 @@ struct AdjustmentDetail: View {
                     vm.applyAdjustment(adjustment, params: params)
                     onApplied()
                 } label: {
-                    Text("Apply")
+                    Text("Áp dụng")
                         .font(.headline)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
                         .background(Theme.primary, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                         .foregroundStyle(.white)
                 }
-                Text("Applies to the current layer. Use Undo to revert.")
+                Text("Áp dụng cho lớp hiện tại. Dùng Hoàn tác để quay lại.")
                     .font(.caption).foregroundStyle(Theme.mutedInk)
             }
             .padding(16)

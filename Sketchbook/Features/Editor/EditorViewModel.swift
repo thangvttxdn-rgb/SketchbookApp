@@ -4,7 +4,15 @@ import PencilKit
 enum ToolMode: String, CaseIterable, Identifiable {
     case draw, erase, fill, lasso, shape
     var id: String { rawValue }
-    var title: String { rawValue.capitalized }
+    var title: String {
+        switch self {
+        case .draw: return "Vẽ"
+        case .erase: return "Tẩy"
+        case .fill: return "Đổ màu"
+        case .lasso: return "Chọn vùng"
+        case .shape: return "Hình"
+        }
+    }
     var systemImage: String {
         switch self {
         case .draw: return "paintbrush.pointed"
@@ -276,7 +284,29 @@ final class EditorViewModel: ObservableObject {
                                  strokeColorHex: UIColor(shape.style.strokeColor).hexString,
                                  strokeWidth: shape.style.strokeWidth)
         document.layers[activeIndex].placedShapes = (document.layers[activeIndex].placedShapes ?? []) + [placed]
+        if shape.kind == .dimension { bakeDimensionLabel(for: shape) }
         Haptics.select()
+    }
+
+    /// Ghi số đo (mm) của đường kích thước vào ảnh raster của lớp đang chọn.
+    /// Cùng bước hoàn tác với nét vừa thêm (snapshot đã chụp khi gán activeDrawing).
+    private func bakeDimensionLabel(for shape: PendingShape) {
+        let (a, b) = ShapeFactory.endpoints(of: shape)
+        let size = document.canvasSize
+        let label = TechnicalDrawing.dimensionLabel(from: a, to: b,
+                                                    color: UIColor(shape.style.strokeColor),
+                                                    lineWidth: shape.style.strokeWidth,
+                                                    canvasSize: size)
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1
+        format.opaque = false
+        let merged = UIGraphicsImageRenderer(size: size, format: format).image { _ in
+            let rect = CGRect(origin: .zero, size: size)
+            document.layers[activeIndex].image?.draw(in: rect)
+            label.draw(in: rect)
+        }
+        document.layers[activeIndex].imageData = merged.pngData()
+        invalidateLayerImage(document.layers[activeIndex].id)
     }
 
     // MARK: - Flip (active layer)
@@ -544,7 +574,7 @@ final class EditorViewModel: ObservableObject {
 
     func addLayer() {
         snapshot()
-        let layer = Layer(name: "Layer \(document.layers.count + 1)")
+        let layer = Layer(name: "Lớp \(document.layers.count + 1)")
         document.layers.append(layer)
         document.activeLayerIndex = document.layers.count - 1
     }
@@ -666,7 +696,7 @@ final class EditorViewModel: ObservableObject {
         let composed = UIGraphicsImageRenderer(size: size, format: format).image { _ in
             image.draw(in: CGRect(origin: origin, size: target))
         }
-        let layer = Layer(name: "Image \((document.layers.filter { $0.image != nil }.count) + 1)",
+        let layer = Layer(name: "Ảnh \((document.layers.filter { $0.image != nil }.count) + 1)",
                           imageData: composed.pngData())
         document.layers.append(layer)
         document.activeLayerIndex = document.layers.count - 1
@@ -742,7 +772,7 @@ final class EditorViewModel: ObservableObject {
 
     func importReference(_ image: UIImage) {
         snapshot()
-        let layer = Layer(name: "Reference",
+        let layer = Layer(name: "Ảnh mẫu",
                           opacity: referenceOpacity,
                           imageData: image.pngData(),
                           isReference: true)

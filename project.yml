@@ -1,14 +1,15 @@
 name: Sketchbook
 options:
-  bundleIdPrefix: com.tertiaryinfotech
+  bundleIdPrefix: vn.ctxdn
   deploymentTarget:
     iOS: "17.0"
   createIntermediateGroups: true
 settings:
   base:
-    MARKETING_VERSION: "1.5"
-    CURRENT_PROJECT_VERSION: "18"
-    DEVELOPMENT_TEAM: "GU9WTSTX9M"
+    MARKETING_VERSION: "2.0"
+    CURRENT_PROJECT_VERSION: "1"
+    # Điền Team ID Apple Developer của CTXĐN khi ký bản cài thật (để trống: build không ký trên CI).
+    DEVELOPMENT_TEAM: ""
     CODE_SIGN_STYLE: Automatic
     SWIFT_VERSION: "5.0"
     ENABLE_USER_SCRIPT_SANDBOXING: YES
@@ -22,7 +23,7 @@ targets:
       - Sketchbook
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.tertiaryinfotech.sketchbookapp
+        PRODUCT_BUNDLE_IDENTIFIER: vn.ctxdn.vetranh
         INFOPLIST_FILE: Sketchbook/App/Info.plist
         TARGETED_DEVICE_FAMILY: "1,2"
         SUPPORTS_MACCATALYST: NO
@@ -39,7 +40,7 @@ targets:
       - target: Sketchbook
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.tertiaryinfotech.sketchbookapp.uitests
+        PRODUCT_BUNDLE_IDENTIFIER: vn.ctxdn.vetranh.uitests
         GENERATE_INFOPLIST_FILE: YES
         TEST_TARGET_NAME: Sketchbook
 schemes:

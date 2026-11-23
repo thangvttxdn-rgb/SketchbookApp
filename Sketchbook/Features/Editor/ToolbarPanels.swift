@@ -10,10 +10,10 @@ struct BrushPanel: View {
         NavigationStack {
             BrushPickerContent(vm: vm)
                 .background(Theme.background.ignoresSafeArea())
-                .navigationTitle("Brushes")
+                .navigationTitle("Cọ vẽ")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
-                    ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+                    ToolbarItem(placement: .confirmationAction) { Button("Xong") { dismiss() } }
                 }
         }
     }
@@ -26,7 +26,7 @@ struct BrushPickerContent: View {
     var body: some View {
         ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("SIZE").font(.caption.weight(.semibold)).foregroundStyle(Theme.mutedInk)
+                    Text("CỠ").font(.caption.weight(.semibold)).foregroundStyle(Theme.mutedInk)
                     HStack(spacing: 12) {
                         Slider(value: $vm.width, in: 1...60)
                         Text("\(Int(vm.width)) pt").font(.subheadline.monospacedDigit())
@@ -44,7 +44,7 @@ struct BrushPickerContent: View {
                         }
                     }
 
-                    Text("PENCILS").font(.caption.weight(.semibold)).foregroundStyle(Theme.mutedInk)
+                    Text("BÚT CHÌ").font(.caption.weight(.semibold)).foregroundStyle(Theme.mutedInk)
                         .padding(.top, 8)
                     ForEach(PencilGrade.allCases) { grade in
                         Button {
@@ -54,7 +54,7 @@ struct BrushPickerContent: View {
                                 Image(systemName: "pencil")
                                     .font(.title3).frame(width: 28)
                                     .foregroundStyle(vm.pencilGrade == grade ? .white : Theme.primary)
-                                Text("Pencil \(grade.title)")
+                                Text("Bút chì \(grade.title)")
                                     .font(.body.weight(.medium))
                                     .foregroundStyle(vm.pencilGrade == grade ? .white : Theme.ink)
                                     .frame(width: 84, alignment: .leading)
@@ -152,9 +152,9 @@ struct LayersPanel: View {
         NavigationStack {
             List {
                 if vm.referenceLayerIndex != nil {
-                    Section("Reference Overlay") {
+                    Section("Ảnh mẫu phủ") {
                         VStack(alignment: .leading) {
-                            Text("Tracing opacity: \(Int(vm.referenceOpacity * 100))%")
+                            Text("Độ mờ ảnh mẫu: \(Int(vm.referenceOpacity * 100))%")
                                 .font(.caption).foregroundStyle(Theme.mutedInk)
                             Slider(value: Binding(get: { vm.referenceOpacity },
                                                   set: { vm.updateReferenceOpacity($0) }), in: 0...1)
@@ -163,7 +163,7 @@ struct LayersPanel: View {
                 }
 
                 if !vm.groupNames.isEmpty {
-                    Section("Groups") {
+                    Section("Nhóm") {
                         ForEach(vm.groupNames, id: \.self) { group in
                             HStack {
                                 Image(systemName: "folder").foregroundStyle(Theme.primary)
@@ -177,7 +177,7 @@ struct LayersPanel: View {
                     }
                 }
 
-                Section("Layers") {
+                Section("Lớp") {
                     ForEach(Array(vm.document.layers.enumerated()), id: \.element.id) { idx, layer in
                         LayerRow(vm: vm, index: idx, layer: layer,
                                  onGroup: {
@@ -192,11 +192,11 @@ struct LayersPanel: View {
                     .onDelete { offsets in offsets.forEach { vm.deleteLayer(at: $0) } }
                     .onMove { source, dest in vm.moveLayer(from: source, to: dest) }
                 }
-                Text("Tap a layer to select it. Hold and drag to reorder; swipe left to delete.")
+                Text("Chạm để chọn lớp. Giữ và kéo để đổi thứ tự; vuốt trái để xoá.")
                     .font(.caption).foregroundStyle(Theme.mutedInk)
                     .listRowBackground(Color.clear)
             }
-            .navigationTitle("Layers")
+            .navigationTitle("Lớp")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { EditButton() }
@@ -205,25 +205,25 @@ struct LayersPanel: View {
                     Button { vm.addLayer() } label: { Image(systemName: "plus") }
                 }
             }
-            .alert("Group Name", isPresented: Binding(get: { groupingIndex != nil },
+            .alert("Tên nhóm", isPresented: Binding(get: { groupingIndex != nil },
                                                       set: { if !$0 { groupingIndex = nil } })) {
-                TextField("Group name (empty to ungroup)", text: $newGroupName)
-                Button("Save") {
+                TextField("Tên nhóm (để trống để bỏ nhóm)", text: $newGroupName)
+                Button("Lưu") {
                     if let i = groupingIndex { vm.setGroup(at: i, to: newGroupName) }
                     groupingIndex = nil
                 }
-                Button("Cancel", role: .cancel) { groupingIndex = nil }
+                Button("Huỷ", role: .cancel) { groupingIndex = nil }
             }
-            .alert("Rename Layer", isPresented: Binding(get: { renamingIndex != nil },
+            .alert("Đổi tên lớp", isPresented: Binding(get: { renamingIndex != nil },
                                                         set: { if !$0 { renamingIndex = nil } })) {
-                TextField("Layer name", text: $newLayerName)
-                Button("Save") {
+                TextField("Tên lớp", text: $newLayerName)
+                Button("Lưu") {
                     if let i = renamingIndex, !newLayerName.trimmingCharacters(in: .whitespaces).isEmpty {
                         vm.renameLayer(at: i, to: newLayerName)
                     }
                     renamingIndex = nil
                 }
-                Button("Cancel", role: .cancel) { renamingIndex = nil }
+                Button("Huỷ", role: .cancel) { renamingIndex = nil }
             }
         }
     }
@@ -269,7 +269,7 @@ struct LayerRow: View {
                         Label(g, systemImage: "folder").font(.caption2).foregroundStyle(Theme.secondary)
                     }
                     if layer.isReference {
-                        Text("Reference").font(.caption2).foregroundStyle(Theme.secondary)
+                        Text("Ảnh mẫu").font(.caption2).foregroundStyle(Theme.secondary)
                     }
                     if layer.isLocked {
                         Image(systemName: "lock.fill").font(.caption2).foregroundStyle(Theme.secondary)
@@ -282,14 +282,14 @@ struct LayerRow: View {
                 Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.primary)
             }
             Menu {
-                Button { vm.setActiveLayer(index) } label: { Label("Select", systemImage: "hand.tap") }
-                Button(action: onRename) { Label("Rename…", systemImage: "pencil") }
-                Button(action: onGroup) { Label("Move to Group…", systemImage: "folder.badge.plus") }
+                Button { vm.setActiveLayer(index) } label: { Label("Chọn", systemImage: "hand.tap") }
+                Button(action: onRename) { Label("Đổi tên…", systemImage: "pencil") }
+                Button(action: onGroup) { Label("Chuyển vào nhóm…", systemImage: "folder.badge.plus") }
                 if layer.groupName != nil {
-                    Button { vm.setGroup(at: index, to: nil) } label: { Label("Ungroup", systemImage: "folder.badge.minus") }
+                    Button { vm.setGroup(at: index, to: nil) } label: { Label("Bỏ nhóm", systemImage: "folder.badge.minus") }
                 }
                 Button { vm.document.layers[index].isLocked.toggle() } label: {
-                    Label(layer.isLocked ? "Unlock" : "Lock", systemImage: layer.isLocked ? "lock.open" : "lock")
+                    Label(layer.isLocked ? "Mở khoá" : "Khoá", systemImage: layer.isLocked ? "lock.open" : "lock")
                 }
                 Menu {
                     ForEach([1.0, 0.75, 0.5, 0.25], id: \.self) { value in
@@ -301,10 +301,10 @@ struct LayerRow: View {
                         }
                     }
                 } label: {
-                    Label("Opacity", systemImage: "circle.lefthalf.filled")
+                    Label("Độ mờ", systemImage: "circle.lefthalf.filled")
                 }
                 Button(role: .destructive) { vm.deleteLayer(at: index) } label: {
-                    Label("Delete Layer", systemImage: "trash")
+                    Label("Xoá lớp", systemImage: "trash")
                 }
             } label: {
                 Image(systemName: "ellipsis.circle").foregroundStyle(Theme.mutedInk)
