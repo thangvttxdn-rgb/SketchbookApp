@@ -3,7 +3,7 @@
 Phát triển từ [Sketchbook Studio](https://github.com/alfredang/sketchbookapp) (giấy phép MIT,
 © Tertiary Infotech Academy Pte Ltd). Bản này do thangvt.txdn@gmail.com bổ sung:
 
-- **Giao diện tiếng Việt**, tên app "Vẽ Tranh", Bundle ID `vn.ctxdn.vetranh`.
+- **Giao diện tiếng Việt**, tên app "Vẽ Tranh", Bundle ID `vn.thangvt.vetranh`.
 - **Vẽ kỹ thuật**: mẫu giấy *Lưới mm* và *Khung bản vẽ* (viền + khung tên), khổ **A3**,
   hình **Ghi kích thước** (2 mũi tên + số mm, hiện số đo khi kéo). Khổ A4/A3 vẽ ở 200 dpi:
   1 mm = 7,876 px, tỉ lệ 1:1 khi in.

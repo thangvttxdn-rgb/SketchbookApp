@@ -4,8 +4,8 @@ Nguồn gốc: github.com/alfredang/sketchbookapp, giấy phép MIT, giữ nguy�
 
 ## Phạm vi (hướng C)
 
-1. **Thương hiệu + Việt hoá**: tên app "Vẽ Tranh", Bundle ID `vn.ctxdn.vetranh`, giao diện tiếng Việt,
-   About/Góp ý trỏ về CTXĐN, ghi công tác giả gốc.
+1. **Thương hiệu + Việt hoá**: tên app "Vẽ Tranh", Bundle ID `vn.thangvt.vetranh`, giao diện tiếng Việt,
+   About ghi người bổ sung thangvt.txdn@gmail.com, ghi công tác giả gốc.
 2. **Vẽ kỹ thuật**: mẫu giấy "Lưới mm" và "Khung bản vẽ" (viền + khung tên), khổ A3,
    hình "Ghi kích thước" (đường có 2 mũi tên + nhãn số mm, hiện số đo trực tiếp khi kéo).
    Quy ước tỉ lệ: khổ A4/A3 vẽ ở 200 dpi, 1 mm = 7,876 px (tỉ lệ 1:1 so với giấy in).

@@ -94,7 +94,7 @@ enum TechnicalDrawing {
         let titleAttrs: [NSAttributedString.Key: Any] = [.font: UIFont.boldSystemFont(ofSize: 3.5 * k),
                                                          .foregroundColor: UIColor.darkGray]
         ("TÊN BẢN VẼ" as NSString).draw(at: CGPoint(x: col2 + 2 * k, y: tb.minY + 3 * k), withAttributes: titleAttrs)
-        ("Chi nhánh Toa xe Đà Nẵng" as NSString).draw(at: CGPoint(x: col2 + 2 * k, y: tb.maxY - 7 * k),
+        ("Đơn vị" as NSString).draw(at: CGPoint(x: col2 + 2 * k, y: tb.maxY - 7 * k),
                                                      withAttributes: attrs)
     }
 

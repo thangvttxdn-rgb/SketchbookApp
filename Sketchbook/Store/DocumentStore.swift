@@ -9,7 +9,7 @@ final class DocumentStore: ObservableObject {
     @Published private(set) var documents: [SketchDocument] = []
     @Published private(set) var usingICloud: Bool = false
 
-    private let ubiquityContainerID = "iCloud.vn.ctxdn.vetranh"
+    private let ubiquityContainerID = "iCloud.vn.thangvt.vetranh"
     private let fileExtension = "sketch"
     private var metadataQuery: NSMetadataQuery?
 

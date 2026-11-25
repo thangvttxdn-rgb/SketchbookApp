@@ -1,6 +1,6 @@
 name: Sketchbook
 options:
-  bundleIdPrefix: vn.ctxdn
+  bundleIdPrefix: vn.thangvt
   deploymentTarget:
     iOS: "17.0"
   createIntermediateGroups: true
@@ -8,7 +8,7 @@ settings:
   base:
     MARKETING_VERSION: "2.0"
     CURRENT_PROJECT_VERSION: "1"
-    # Điền Team ID Apple Developer của CTXĐN khi ký bản cài thật (để trống: build không ký trên CI).
+    # Điền Team ID Apple Developer khi ký bản cài thật (để trống: build không ký trên CI).
     DEVELOPMENT_TEAM: ""
     CODE_SIGN_STYLE: Automatic
     SWIFT_VERSION: "5.0"
@@ -23,7 +23,7 @@ targets:
       - Sketchbook
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: vn.ctxdn.vetranh
+        PRODUCT_BUNDLE_IDENTIFIER: vn.thangvt.vetranh
         INFOPLIST_FILE: Sketchbook/App/Info.plist
         TARGETED_DEVICE_FAMILY: "1,2"
         SUPPORTS_MACCATALYST: NO
@@ -40,7 +40,7 @@ targets:
       - target: Sketchbook
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: vn.ctxdn.vetranh.uitests
+        PRODUCT_BUNDLE_IDENTIFIER: vn.thangvt.vetranh.uitests
         GENERATE_INFOPLIST_FILE: YES
         TEST_TARGET_NAME: Sketchbook
 schemes:
