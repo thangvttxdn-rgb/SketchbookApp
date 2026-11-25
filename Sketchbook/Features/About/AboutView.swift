@@ -21,9 +21,9 @@ struct AboutView: View {
                 }
                 .appCard()
 
-                Text("ĐƠN VỊ PHÁT TRIỂN").font(.caption.weight(.semibold)).foregroundStyle(Theme.mutedInk)
+                Text("PHÁT TRIỂN BỔ SUNG").font(.caption.weight(.semibold)).foregroundStyle(Theme.mutedInk)
                 VStack(alignment: .leading, spacing: 0) {
-                    Label("Chi nhánh Toa xe Đà Nẵng", systemImage: "building.2.fill")
+                    Label("thangvt.txdn@gmail.com", systemImage: "envelope.fill")
                         .foregroundStyle(Theme.ink)
                         .padding(.vertical, 14)
                     Divider()

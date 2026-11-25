@@ -1,7 +1,7 @@
-# Vẽ Tranh — app vẽ cho iPad (CTXĐN)
+# Vẽ Tranh — app vẽ cho iPad
 
 Phát triển từ [Sketchbook Studio](https://github.com/alfredang/sketchbookapp) (giấy phép MIT,
-© Tertiary Infotech Academy Pte Ltd). Bản này do Chi nhánh Toa xe Đà Nẵng bổ sung:
+© Tertiary Infotech Academy Pte Ltd). Bản này do thangvt.txdn@gmail.com bổ sung:
 
 - **Giao diện tiếng Việt**, tên app "Vẽ Tranh", Bundle ID `vn.ctxdn.vetranh`.
 - **Vẽ kỹ thuật**: mẫu giấy *Lưới mm* và *Khung bản vẽ* (viền + khung tên), khổ **A3**,
